@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#0a0a0f"/>
+<title>Game Points Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:#0a0a0f; --surface:#13131f; --surface2:#1c1c2e; --border:#2a2a42;
+    --accent:#7c4dff; --accent2:#00e5a0; --accent3:#ff6b35;
+    --text:#e8e8f0; --text2:#8888aa; --danger:#ff4466;
+    --card-glow:0 0 0 1px var(--border),0 4px 24px rgba(124,77,255,0.08);
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:14px;overflow:hidden;-webkit-tap-highlight-color:transparent;}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;z-index:1;}
+  .screen.hidden{display:none!important;}
+  .header{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+  .header-title{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .header-sub{font-size:11px;color:var(--text2);margin-top:1px;}
+  .back-btn,.icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s;}
+  .back-btn:active,.icon-btn:active{background:var(--accent);border-color:var(--accent);}
+
+  /* SYNC BAR */
+  .sync-bar{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;font-size:12px;}
+  .sync-bar.hidden{display:none;}
+  .sync-status{flex:1;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sync-btn{padding:5px 12px;border-radius:8px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+  .sync-btn:active{background:var(--accent);color:#fff;}
+  .sync-btn:disabled{opacity:0.4;cursor:default;}
+  .sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--text2);}
+  .sync-dot.online{background:var(--accent2);box-shadow:0 0 6px var(--accent2);}
+  .sync-dot.syncing{background:var(--accent3);animation:pulse 0.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+  .search-wrap{padding:10px 14px 6px;flex-shrink:0;position:relative;}
+  .search-input{width:100%;padding:10px 14px 10px 38px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;transition:border-color 0.2s;}
+  .search-input:focus{border-color:var(--accent);}
+  .search-icon{position:absolute;left:26px;top:50%;transform:translateY(-50%);color:var(--text2);font-size:15px;pointer-events:none;}
+  .scroll-content{flex:1;overflow-y:auto;padding:8px 14px 80px;}
+  .scroll-content::-webkit-scrollbar{display:none;}
+
+  .list-item{display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;box-shadow:var(--card-glow);}
+  .list-item:active{background:var(--surface2);border-color:var(--accent);}
+  .list-item-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#7c4dff22,#00e5a022);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+  .list-item-body{flex:1;min-width:0;}
+  .list-item-title{font-family:'Syne',sans-serif;font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .list-item-sub{font-size:11px;color:var(--text2);margin-top:2px;}
+  .list-item-actions{display:flex;gap:6px;flex-shrink:0;}
+  .mini-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .mini-btn.edit:active{background:#7c4dff33;color:var(--accent);}
+  .mini-btn.del:active{background:#ff446633;color:var(--danger);}
+
+  .fab{position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:18px;background:var(--accent);border:none;color:#fff;font-size:26px;cursor:pointer;z-index:100;box-shadow:0 4px 20px rgba(124,77,255,0.5);display:flex;align-items:center;justify-content:center;transition:transform 0.15s;}
+  .fab:active{transform:scale(0.93);}
+
+  .tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);}
+  .tab-btn{flex:1;padding:12px 6px;background:none;border:none;color:var(--text2);font-family:'Syne',sans-serif;font-weight:600;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;transition:color 0.15s,border-color 0.15s;}
+  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:flex-end;animation:fadeIn 0.15s ease;}
+  .modal-overlay.hidden{display:none;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .modal{width:100%;background:var(--surface2);border-radius:24px 24px 0 0;border-top:1px solid var(--border);padding:20px 18px 36px;max-height:88vh;display:flex;flex-direction:column;animation:slideUp 0.2s ease;}
+  @keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  .modal-handle{width:36px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 16px;}
+  .modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-bottom:16px;}
+  .modal-scroll{overflow-y:auto;flex:1;}
+  .modal-scroll::-webkit-scrollbar{display:none;}
+
+  .field-label{font-size:11px;color:var(--text2);margin-bottom:5px;letter-spacing:0.06em;text-transform:uppercase;}
+  .field-wrap{margin-bottom:14px;}
+  .text-input{width:100%;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none;transition:border-color 0.2s;}
+  .text-input:focus{border-color:var(--accent);}
+
+  .btn{width:100%;padding:14px;border-radius:14px;border:none;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:opacity 0.15s,transform 0.1s;}
+  .btn:active{transform:scale(0.97);opacity:0.9;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-success{background:var(--accent2);color:#0a0a0f;}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text2);}
+  .btn-google{background:#fff;color:#3c3c3c;display:flex;align-items:center;justify-content:center;gap:10px;font-family:'Syne',sans-serif;font-weight:700;}
+  .btn-row{display:flex;gap:10px;margin-top:14px;}
+  .btn-row .btn{flex:1;}
+
+  .empty-state{text-align:center;padding:48px 24px;color:var(--text2);}
+  .empty-state .empty-icon{font-size:48px;margin-bottom:12px;opacity:0.4;}
+  .empty-state p{font-size:13px;line-height:1.6;}
+
+  .bill-line{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 13px;margin-bottom:8px;}
+  .bill-line-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .bill-game-name{flex:1;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:#b8a0ff;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bill-rate{font-size:11px;color:var(--text2);flex-shrink:0;}
+  .mode-toggle{padding:4px 10px;border-radius:8px;border:1px solid var(--border);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;flex-shrink:0;background:var(--surface2);color:var(--accent2);}
+  .mode-toggle.pts-mode{color:var(--accent3);border-color:var(--accent3);}
+  .remove-line{width:26px;height:26px;border-radius:7px;flex-shrink:0;border:1px solid var(--border);background:none;color:var(--danger);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .bill-line-calc{display:flex;align-items:center;gap:8px;}
+  .calc-input{flex:1;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none;min-width:0;transition:border-color 0.2s;}
+  .calc-input:focus{border-color:var(--accent);}
+  .calc-arrow{color:var(--text2);font-size:14px;flex-shrink:0;}
+  .calc-result{flex:1;padding:9px 12px;background:#00e5a010;border:1px solid #00e5a030;border-radius:10px;color:var(--accent2);font-family:'DM Mono',monospace;font-size:13px;font-weight:500;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .calc-result.empty{background:var(--surface2);border-color:var(--border);color:var(--text2);}
+
+  .bill-summary{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.8;display:none;}
+  .bill-summary.visible{display:block;}
+  .bill-summary-line{display:flex;justify-content:space-between;gap:8px;}
+  .bill-summary-game{color:var(--text2);}
+  .bill-summary-result{color:var(--accent2);font-weight:500;}
+  .bill-divider{border:none;border-top:1px solid var(--border);margin:8px 0;}
+  .bill-total{display:flex;justify-content:space-between;color:var(--text);font-weight:500;font-size:13px;}
+
+  .history-item{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;}
+  .history-item:active{border-color:var(--accent);}
+  .history-date{font-size:11px;color:var(--text2);margin-bottom:4px;}
+  .history-preview{font-size:12px;color:var(--text);line-height:1.5;}
+
+  .game-option{display:flex;align-items:center;padding:11px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:7px;cursor:pointer;transition:all 0.15s;background:var(--surface);}
+  .game-option:active,.game-option.selected{border-color:var(--accent);background:#7c4dff18;}
+  .game-option-name{flex:1;font-size:13px;color:var(--text);}
+  .game-option-rate{font-size:11px;color:var(--text2);}
+  .game-option-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);margin-left:10px;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;transition:all 0.15s;}
+  .game-option.selected .game-option-check{border-color:var(--accent);background:var(--accent);color:#fff;}
+
+  .rate-badge{display:inline-block;padding:2px 8px;border-radius:6px;background:#7c4dff22;border:1px solid #7c4dff44;color:#b8a0ff;font-size:11px;}
+  .add-game-pill{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:12px;border:1px dashed var(--border);color:var(--text2);cursor:pointer;font-size:13px;margin-bottom:10px;transition:all 0.15s;background:transparent;width:100%;}
+  .add-game-pill:active{border-color:var(--accent);color:var(--accent);}
+
+  /* LOGIN */
+  .login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;}
+  .login-logo{font-size:64px;margin-bottom:16px;}
+  .login-title{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;margin-bottom:8px;}
+  .login-sub{color:var(--text2);font-size:13px;line-height:1.6;margin-bottom:32px;}
+  .login-card{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:16px;}
+  .login-card-title{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;margin-bottom:6px;}
+  .login-card-sub{font-size:12px;color:var(--text2);line-height:1.5;}
+  .divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--text2);font-size:12px;}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  /* SETUP */
+  .setup-step{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;}
+  .setup-step-num{width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px;}
+  .setup-step-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:4px;}
+  .setup-step-desc{font-size:12px;color:var(--text2);line-height:1.7;}
+  .code-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2);margin-top:8px;word-break:break-all;line-height:1.6;}
+  .ic{background:var(--surface2);padding:1px 6px;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent3);}
+  .config-notice{background:#ff6b3514;border:1px solid #ff6b3544;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#ffb085;line-height:1.6;}
+
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--accent2);color:var(--accent2);padding:10px 20px;border-radius:30px;font-size:13px;z-index:999;opacity:0;pointer-events:none;transition:opacity 0.2s,transform 0.2s;white-space:nowrap;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse 60% 40% at 80% 10%,#7c4dff0d 0%,transparent 60%),radial-gradient(ellipse 40% 30% at 10% 80%,#00e5a008 0%,transparent 60%);}
+</style>
+</head>
+<body>
+
+<!-- ════════ SETUP SCREEN -->
+<div class="screen hidden" id="screen-setup">
+  <div class="header">
+    <div><div class="header-title">🔧 Firebase Setup</div><div class="header-sub">One-time · takes ~5 minutes</div></div>
+  </div>
+  <div class="scroll-content">
+    <div class="config-notice" style="background:#ff446614;border-color:#ff4466;color:#ffb3c0;">
+      🚨 <strong>Important:</strong> This app must be opened via <strong>http://</strong> or <strong>https://</strong> — NOT from a file on your computer. If you see a Google sign-in error, follow the <strong>"How to Host"</strong> steps below first.
+    </div>
+    <div class="setup-step" style="border-color:#00e5a044;background:#00e5a008">
+      <div class="setup-step-num" style="background:#00e5a0;color:#0a0a0f">🌐</div>
+      <div class="setup-step-title" style="color:#00e5a0">How to Host This App (Free — 3 minutes)</div>
+      <div class="setup-step-desc">
+        <strong>Option A — GitHub Pages (Recommended):</strong><br/>
+        1. Go to <strong>github.com</strong> and create a free account<br/>
+        2. Click <strong>New repository</strong> → name it <span class="ic">gamepoints</span> → set to <strong>Public</strong> → Create<br/>
+        3. Click <strong>Add file → Upload files</strong> → upload <span class="ic">GamePointsManager.html</span><br/>
+        4. Rename the file to <span class="ic">index.html</span> after uploading<br/>
+        5. Go to <strong>Settings → Pages → Source: main branch</strong> → Save<br/>
+        6. Your app will be live at: <span class="ic">https://yourusername.github.io/gamepoints</span><br/>
+        7. Open that URL in Chrome on your phone — done! ✅<br/><br/>
+        <strong>Option B — Firebase Hosting (also free):</strong><br/>
+        In Firebase Console → Hosting → Get Started → follow the steps there.
+      </div>
+    </div>
+    <div class="config-notice">⚠️ Complete these steps once. After that, just sign in with Google on any device.</div>
+
+    <div class="setup-step">
+      <div class="setup-step-num">1</div>
+      <div class="setup-step-title">Create a Firebase Project</div>
+      <div class="setup-step-desc">
+        Open <strong>console.firebase.google.com</strong> → Sign in with Google → Click <span class="ic">Add project</span> → Name it (e.g. <em>GamePoints</em>) → Click through and hit <strong>Create project</strong>.
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-step-num">2</div>
+      <div class="setup-step-title">Register a Web App</div>
+      <div class="setup-step-desc">
+        Inside your project → Click the <span class="ic">&lt;/&gt;</span> Web icon → Give it any name → Click <strong>Register app</strong>. You'll see a <strong>firebaseConfig</strong> block — keep this page open, you'll need it in Step 5.
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-step-num">3</div>
+      <div class="setup-step-title">Enable Google Sign-In + Add Your Domain</div>
+      <div class="setup-step-desc">
+        Left sidebar → <span class="ic">Authentication</span> → <span class="ic">Get Started</span> → <span class="ic">Sign-in method</span> tab → Click <strong>Google</strong> → Toggle Enable → Add your email as support email → <strong>Save</strong>.<br/><br/>
+        Then click the <span class="ic">Authorized domains</span> tab and click <strong>Add domain</strong>. Add your GitHub Pages URL, for example:<br/>
+        <div class="code-block">yourusername.github.io</div>
+        This is required — Google will block sign-in from any domain not listed here.
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-step-num">4</div>
+      <div class="setup-step-title">Create Firestore Database</div>
+      <div class="setup-step-desc">
+        Left sidebar → <span class="ic">Firestore Database</span> → <span class="ic">Create database</span> → Choose <strong>Start in test mode</strong> → Pick any region → <strong>Enable</strong>.<br/><br/>
+        Then click the <span class="ic">Rules</span> tab, replace everything with this and click <strong>Publish</strong>:
+        <div class="code-block">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+        &amp;&amp; request.auth.uid == userId;
+    }
+  }
+}</div>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-step-num">5</div>
+      <div class="setup-step-title">Paste Your Config Here</div>
+      <div class="setup-step-desc">From the firebaseConfig object in Step 2, copy each value below:</div>
+    </div>
+
+    <div class="field-wrap"><div class="field-label">API Key</div><input class="text-input" id="cfg-apiKey" placeholder="AIzaSy..." autocomplete="off"/></div>
+    <div class="field-wrap"><div class="field-label">Auth Domain</div><input class="text-input" id="cfg-authDomain" placeholder="yourapp.firebaseapp.com" autocomplete="off"/></div>
+    <div class="field-wrap"><div class="field-label">Project ID</div><input class="text-input" id="cfg-projectId" placeholder="your-project-id" autocomplete="off"/></div>
+    <div class="field-wrap"><div class="field-label">Storage Bucket</div><input class="text-input" id="cfg-storageBucket" placeholder="yourapp.firebasestorage.app" autocomplete="off"/></div>
+    <div class="field-wrap"><div class="field-label">Messaging Sender ID</div><input class="text-input" id="cfg-messagingSenderId" placeholder="331918477352" autocomplete="off"/></div>
+    <div class="field-wrap"><div class="field-label">App ID</div><input class="text-input" id="cfg-appId" placeholder="1:123456:web:abcdef" autocomplete="off"/></div>
+
+    <button class="btn btn-primary" onclick="saveFirebaseConfig()" style="margin-bottom:8px">✅ Save & Connect</button>
+    <button class="btn btn-ghost" onclick="goTo('screen-login')" style="margin-bottom:24px">← Back to Login</button>
+    <button class="btn btn-ghost" onclick="clearSavedConfig()" style="margin-bottom:24px;border-color:#ff4466;color:#ff4466">🗑️ Clear Saved Config</button>
+  </div>
+</div>
+
+<!-- ════════ LOGIN SCREEN -->
+<div class="screen hidden" id="screen-login">
+  <div class="login-screen scroll-content" style="padding-bottom:40px">
+    <div class="login-logo">🎮</div>
+    <div class="login-title">Game Points</div>
+    <p class="login-sub">Manage your game point sales.<br/>Sync across all your devices.</p>
+
+    <div class="login-card" style="margin-bottom:20px">
+      <div class="login-card-title">☁️ Google Sync</div>
+      <div class="login-card-sub">Sign in to back up your companies, games, rates and bill history. Sync anytime with one tap.</div>
+    </div>
+
+    <button class="btn btn-google" onclick="signInWithGoogle()" style="margin-bottom:12px">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continue with Google
+    </button>
+    <div class="divider">or</div>
+    <button class="btn btn-ghost" onclick="useOffline()" style="margin-bottom:20px">Use Offline (no sync)</button>
+    <p style="font-size:11px;color:var(--text2);line-height:1.6">
+      First time? <button onclick="goTo('screen-setup')" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;text-decoration:underline">Set up Firebase →</button>
+    </p>
+  </div>
+</div>
+
+<!-- ════════ HOME SCREEN -->
+<div class="screen hidden" id="screen-home">
+  <div class="header">
+    <div style="flex:1;min-width:0">
+      <div class="header-title">🎮 Game Points</div>
+      <div class="header-sub" id="home-user-label">Offline mode</div>
+    </div>
+    <button class="icon-btn" onclick="goTo('screen-games')" title="Master Games">⚙️</button>
+    <button class="icon-btn" onclick="openAccountMenu()" title="Account">👤</button>
+  </div>
+  <div class="sync-bar hidden" id="sync-bar">
+    <div class="sync-dot" id="sync-dot"></div>
+    <div class="sync-status" id="sync-status-text">Signed in</div>
+    <button class="sync-btn" id="sync-up-btn" onclick="syncToCloud()">☁️ Upload</button>
+    <button class="sync-btn" id="sync-down-btn" onclick="syncFromCloud()">⬇️ Download</button>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="search-input" id="home-search" placeholder="Search companies..." oninput="renderCompanies()" autocomplete="off"/>
+  </div>
+  <div class="scroll-content" id="company-list"></div>
+  <button class="fab" onclick="openAddCompany()">＋</button>
+</div>
+
+<!-- ════════ COMPANY SCREEN -->
+<div class="screen hidden" id="screen-company">
+  <div class="header">
+    <button class="back-btn" onclick="goTo('screen-home')">←</button>
+    <div style="flex:1;min-width:0">
+      <div class="header-title" id="company-header-name">Company</div>
+      <div class="header-sub" id="company-header-sub"></div>
+    </div>
+    <button class="icon-btn" onclick="openRenameCompany()">✏️</button>
+    <button class="icon-btn" onclick="openDeleteCompany()">🗑️</button>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('rates')">Games & Rates</button>
+    <button class="tab-btn" onclick="switchTab('calc')">Calculator</button>
+    <button class="tab-btn" onclick="switchTab('history')">History</button>
+  </div>
+  <div id="tab-rates" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+    <div class="search-wrap"><span class="search-icon">🔍</span><input class="search-input" id="rates-search" placeholder="Search assigned games..." oninput="renderRates()" autocomplete="off"/></div>
+    <div class="scroll-content" id="rates-list"></div>
+    <button class="fab" onclick="openAssignGame()">＋</button>
+  </div>
+  <div id="tab-calc" class="hidden" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+    <div class="scroll-content" id="calc-content">
+      <div id="bill-lines"></div>
+      <button class="add-game-pill" onclick="openGamePicker()">＋ Add Game to Bill</button>
+      <div class="bill-summary" id="bill-summary"></div>
+      <button class="btn btn-success" id="copy-bill-btn" onclick="copyBill()" style="display:none">📋 Copy Bill to Clipboard</button>
+      <div style="height:8px"></div>
+      <button class="btn btn-ghost" onclick="clearBill()" id="clear-bill-btn" style="display:none;margin-top:6px">Clear Bill</button>
+    </div>
+  </div>
+  <div id="tab-history" class="hidden" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+    <div class="scroll-content" id="history-list"></div>
+  </div>
+</div>
+
+<!-- ════════ MASTER GAMES SCREEN -->
+<div class="screen hidden" id="screen-games">
+  <div class="header">
+    <button class="back-btn" onclick="goTo('screen-home')">←</button>
+    <div><div class="header-title">Master Games List</div><div class="header-sub">All games across companies</div></div>
+  </div>
+  <div class="search-wrap"><span class="search-icon">🔍</span><input class="search-input" id="games-search" placeholder="Search games..." oninput="renderMasterGames()" autocomplete="off"/></div>
+  <div class="scroll-content" id="master-games-list"></div>
+  <button class="fab" onclick="openAddGame()">＋</button>
+</div>
+
+<!-- ════════ MODALS -->
+<div class="modal-overlay hidden" id="modal-add-company"><div class="modal"><div class="modal-handle"></div><div class="modal-title">Add New Company</div><div class="field-wrap"><div class="field-label">Company Name</div><input class="text-input" id="input-company-name" placeholder="e.g. Mario101 Credits" autocomplete="off"/></div><div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-add-company')">Cancel</button><button class="btn btn-primary" onclick="saveCompany()">Add Company</button></div></div></div>
+
+<div class="modal-overlay hidden" id="modal-rename-company"><div class="modal"><div class="modal-handle"></div><div class="modal-title">Rename Company</div><div class="field-wrap"><div class="field-label">New Name</div><input class="text-input" id="input-rename-company" autocomplete="off"/></div><div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-rename-company')">Cancel</button><button class="btn btn-primary" onclick="saveRenameCompany()">Save</button></div></div></div>
+
+<div class="modal-overlay hidden" id="modal-delete-company"><div class="modal"><div class="modal-handle"></div><div class="modal-title">Delete Company?</div><p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.6">This removes the company and all its assigned games and bills. Cannot be undone.</p><div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-delete-company')">Cancel</button><button class="btn btn-danger" onclick="confirmDeleteCompany()">Delete</button></div></div></div>
+
+<div class="modal-overlay hidden" id="modal-add-game"><div class="modal"><div class="modal-handle"></div><div class="modal-title">Add Game</div><div class="field-wrap"><div class="field-label">Game Name</div><input class="text-input" id="input-game-name" placeholder="e.g. Gamevault, FC Mobile..." autocomplete="off"/></div><div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-add-game')">Cancel</button><button class="btn btn-primary" onclick="saveMasterGame()">Add Game</button></div></div></div>
+
+<div class="modal-overlay hidden" id="modal-edit-game"><div class="modal"><div class="modal-handle"></div><div class="modal-title">Rename Game</div><div class="field-wrap"><div class="field-label">Game Name</div><input class="text-input" id="input-edit-game-name" autocomplete="off"/></div><div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-edit-game')">Cancel</button><button class="btn btn-primary" onclick="saveEditGame()">Save</button></div></div></div>
+
+<div class="modal-overlay hidden" id="modal-assign-game">
+  <div class="modal" style="max-height:88vh"><div class="modal-handle"></div><div class="modal-title">Assign Game</div>
+    <div class="field-wrap"><div class="field-label">Select Game</div><input class="text-input" id="assign-game-search" placeholder="Search games..." oninput="renderAssignGameList()" autocomplete="off" style="margin-bottom:10px"/><div class="modal-scroll" style="max-height:200px" id="assign-game-list"></div></div>
+    <div class="field-wrap"><div class="field-label">Rate % for this company</div><input class="text-input" id="input-assign-rate" placeholder="e.g. 9 or 9.5" type="number" step="0.01" min="0.01"/></div>
+    <div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-assign-game')">Cancel</button><button class="btn btn-primary" onclick="saveAssignGame()">Assign</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="modal-edit-rate"><div class="modal"><div class="modal-handle"></div><div class="modal-title" id="modal-edit-rate-title">Edit Rate</div><div class="field-wrap"><div class="field-label">New Rate %</div><input class="text-input" id="input-edit-rate" type="number" step="0.01" min="0.01"/></div><div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-edit-rate')">Cancel</button><button class="btn btn-primary" onclick="saveEditRate()">Save Rate</button></div></div></div>
+
+<div class="modal-overlay hidden" id="modal-game-picker">
+  <div class="modal" style="max-height:80vh"><div class="modal-handle"></div><div class="modal-title">Select Game</div>
+    <input class="text-input" id="picker-search" placeholder="🔍 Search..." oninput="renderPickerList()" autocomplete="off" style="margin-bottom:10px"/>
+    <div class="modal-scroll" id="picker-list" style="max-height:360px"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="modal-view-bill">
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Bill</div>
+    <div class="modal-scroll" style="max-height:340px;margin-bottom:14px"><pre id="view-bill-text" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.8"></pre></div>
+    <div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('modal-view-bill')">Close</button><button class="btn btn-success" onclick="copyHistoryBill()">📋 Copy</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="modal-account">
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Account</div>
+    <div id="account-info" style="margin-bottom:16px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-danger" id="btn-sign-out" onclick="signOutUser()" style="display:none">Sign Out</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-account')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ════════ FIREBASE COMPAT SDKs (global scope, no module isolation issues) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+// ════════ FIREBASE INIT (runs in global scope, same as app logic)
+function getConfig(){ try{ return JSON.parse(localStorage.getItem('fb_config')||'null'); }catch(e){ return null; } }
+
+let _fbApp=null, _fbAuth=null, _fbDb=null;
+
+function initFB(config){
+  try{
+    // Prevent duplicate app init on hot reload
+    if(_fbApp){ try{ firebase.app().delete(); }catch(e){} }
+    _fbApp  = firebase.initializeApp(config);
+    _fbAuth = firebase.auth();
+    _fbDb   = firebase.firestore();
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    window._fbReady    = true;
+    window._fbSignIn   = async () => {
+      try {
+        await _fbAuth.signInWithPopup(provider);
+      } catch(e) {
+        if(['auth/popup-blocked','auth/popup-closed-by-user','auth/cancelled-popup-request'].includes(e.code)){
+          await _fbAuth.signInWithRedirect(provider);
+        } else { throw e; }
+      }
+    };
+    window._fbSignOut  = () => _fbAuth.signOut();
+    window._fbUpload   = async (uid, data) => {
+      await _fbDb.collection('users').doc(uid).collection('data').doc('main')
+        .set({ payload: JSON.stringify(data), updatedAt: Date.now() });
+    };
+    window._fbDownload = async (uid) => {
+      const snap = await _fbDb.collection('users').doc(uid).collection('data').doc('main').get();
+      return snap.exists ? JSON.parse(snap.data().payload) : null;
+    };
+
+    _fbAuth.onAuthStateChanged(user => {
+      window._user = user;
+      if(user){
+        document.getElementById('home-user-label').textContent = user.email;
+        document.getElementById('sync-bar').classList.remove('hidden');
+        setSyncStatus('online','Signed in · '+( user.displayName||user.email));
+        const login = document.getElementById('screen-login');
+        if(login && !login.classList.contains('hidden')) goTo('screen-home');
+      } else {
+        document.getElementById('home-user-label').textContent='Offline mode';
+        document.getElementById('sync-bar').classList.add('hidden');
+      }
+    });
+
+    // Handle redirect sign-in result (mobile browsers)
+    _fbAuth.getRedirectResult().then(result => {
+      if(result && result.user){ showToast('✅ Signed in!'); goTo('screen-home'); }
+    }).catch(e => {
+      if(e && e.code !== 'auth/no-current-user') showToast('❌ '+e.message);
+    });
+
+    return true;
+  } catch(e){ console.error('Firebase init error:',e); return false; }
+}
+
+// ════════ INIT ON PAGE LOAD
+window.addEventListener('DOMContentLoaded', () => {
+  // Pre-fill config fields (your values are already here)
+  const saved = getConfig();
+  const prefill = saved || {
+    apiKey:            'AIzaSyAKY98IRdR0jZRWvRWY0FGIuacugGO52B4',
+    authDomain:        'points-calculate.firebaseapp.com',
+    projectId:         'points-calculate',
+    storageBucket:     'points-calculate.firebasestorage.app',
+    messagingSenderId: '331918477352',
+    appId:             '1:331918477352:web:e42fa232ca7c028cac4d1d'
+  };
+  document.getElementById('cfg-apiKey').value            = prefill.apiKey||'';
+  document.getElementById('cfg-authDomain').value        = prefill.authDomain||'';
+  document.getElementById('cfg-projectId').value         = prefill.projectId||'';
+  document.getElementById('cfg-storageBucket').value     = prefill.storageBucket||'';
+  document.getElementById('cfg-messagingSenderId').value = prefill.messagingSenderId||'';
+  document.getElementById('cfg-appId').value             = prefill.appId||'';
+
+  if(saved){
+    initFB(saved);
+    goTo('screen-login');
+  } else {
+    goTo('screen-setup');
+  }
+});
+</script>
+
+<!-- ════════ APP LOGIC -->
+<script>
+// ── DATA ──────────────────────────────────────────────────────
+const DB={
+  load(){ try{ const r=localStorage.getItem('gpm_data'); if(r) return JSON.parse(r); }catch(e){} return {games:[],companies:[],companyGames:[],bills:[]}; },
+  save(d){ localStorage.setItem('gpm_data',JSON.stringify(d)); },
+  get(){ return this._d||(this._d=this.load()); },
+  commit(){ this.save(this._d); },
+  getGames(s=''){ let g=[...this.get().games]; if(s){const q=s.toLowerCase();g=g.filter(x=>x.name.toLowerCase().includes(q));} return g.sort((a,b)=>a.name.localeCompare(b.name)); },
+  addGame(name){ const d=this.get(); if(d.games.find(g=>g.name.toLowerCase()===name.toLowerCase())) return null; const g={id:uid(),name:name.trim()}; d.games.push(g); this.commit(); return g; },
+  updateGame(id,name){ const g=this.get().games.find(x=>x.id===id); if(g){g.name=name.trim();this.commit();} },
+  deleteGame(id){ const d=this.get(); d.games=d.games.filter(g=>g.id!==id); d.companyGames=d.companyGames.filter(cg=>cg.gameId!==id); this.commit(); },
+  getCompanies(s=''){ let c=[...this.get().companies]; if(s){const q=s.toLowerCase();c=c.filter(x=>x.name.toLowerCase().includes(q));} return c.sort((a,b)=>a.name.localeCompare(b.name)); },
+  addCompany(name){ const d=this.get(); if(d.companies.find(c=>c.name.toLowerCase()===name.toLowerCase())) return null; const c={id:uid(),name:name.trim()}; d.companies.push(c); this.commit(); return c; },
+  updateCompany(id,name){ const c=this.get().companies.find(x=>x.id===id); if(c){c.name=name.trim();this.commit();} },
+  deleteCompany(id){ const d=this.get(); d.companies=d.companies.filter(c=>c.id!==id); d.companyGames=d.companyGames.filter(cg=>cg.companyId!==id); d.bills=d.bills.filter(b=>b.companyId!==id); this.commit(); },
+  getCompanyGames(cid,s=''){ const d=this.get(); let r=d.companyGames.filter(cg=>cg.companyId===cid).map(cg=>{const g=d.games.find(x=>x.id===cg.gameId);return g?{cgId:cg.id,gameId:g.id,gameName:g.name,rate:cg.rate}:null;}).filter(Boolean); if(s){const q=s.toLowerCase();r=r.filter(x=>x.gameName.toLowerCase().includes(q));} return r.sort((a,b)=>a.gameName.localeCompare(b.gameName)); },
+  getUnassigned(cid,s=''){ const d=this.get(); const a=new Set(d.companyGames.filter(cg=>cg.companyId===cid).map(cg=>cg.gameId)); let g=d.games.filter(x=>!a.has(x.id)); if(s){const q=s.toLowerCase();g=g.filter(x=>x.name.toLowerCase().includes(q));} return g.sort((a,b)=>a.name.localeCompare(b.name)); },
+  assignGame(cid,gid,rate){ const d=this.get(); if(d.companyGames.find(cg=>cg.companyId===cid&&cg.gameId===gid)) return false; d.companyGames.push({id:uid(),companyId:cid,gameId:gid,rate:parseFloat(rate)}); this.commit(); return true; },
+  updateRate(cgId,rate){ const cg=this.get().companyGames.find(x=>x.id===cgId); if(cg){cg.rate=parseFloat(rate);this.commit();} },
+  removeCG(cgId){ const d=this.get(); d.companyGames=d.companyGames.filter(cg=>cg.id!==cgId); this.commit(); },
+  saveBill(cid,text){ const d=this.get(); d.bills.push({id:uid(),companyId:cid,text,date:new Date().toISOString()}); const comp=d.bills.filter(b=>b.companyId===cid); if(comp.length>30){const old=comp.slice(0,comp.length-30).map(b=>b.id);d.bills=d.bills.filter(b=>!old.includes(b.id));} this.commit(); },
+  getBills(cid){ return this.get().bills.filter(b=>b.companyId===cid).sort((a,b)=>new Date(b.date)-new Date(a.date)); }
+};
+function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+
+// ── STATE ─────────────────────────────────────────────────────
+let cid=null, tab='rates', editGId=null, editCGId=null, selGame=null, billLines=[], viewBillText='';
+
+// ── NAV ───────────────────────────────────────────────────────
+function goTo(s){ document.querySelectorAll('.screen').forEach(x=>x.classList.add('hidden')); document.getElementById(s).classList.remove('hidden'); if(s==='screen-home') renderCompanies(); if(s==='screen-games') renderMasterGames(); if(s==='screen-company') renderTab(); }
+window.goTo=goTo;
+
+function openCompany(id){ cid=id; const c=DB.get().companies.find(x=>x.id===id); if(!c) return; document.getElementById('company-header-name').textContent=c.name; const cgs=DB.getCompanyGames(id); document.getElementById('company-header-sub').textContent=`${cgs.length} game${cgs.length!==1?'s':''} assigned`; document.getElementById('rates-search').value=''; switchTab('rates'); goTo('screen-company'); }
+
+function useOffline(){ goTo('screen-home'); }
+window.useOffline=useOffline;
+
+// ── SYNC ──────────────────────────────────────────────────────
+function setSyncStatus(state,msg){ const dot=document.getElementById('sync-dot'); const txt=document.getElementById('sync-status-text'); dot.className='sync-dot'+(state==='online'?' online':state==='syncing'?' syncing':''); txt.textContent=msg; }
+window.setSyncStatus=setSyncStatus;
+
+async function syncToCloud(){ if(!window._user){showToast('⚠️ Sign in first');return;} const btn=document.getElementById('sync-up-btn'); btn.disabled=true; setSyncStatus('syncing','Uploading...'); try{ await window._fbUpload(window._user.uid,DB.get()); setSyncStatus('online','Upload complete ✓'); showToast('☁️ Data uploaded!'); }catch(e){ setSyncStatus('idle','Upload failed'); showToast('❌ '+e.message); } btn.disabled=false; }
+window.syncToCloud=syncToCloud;
+
+async function syncFromCloud(){ if(!window._user){showToast('⚠️ Sign in first');return;} const btn=document.getElementById('sync-down-btn'); btn.disabled=true; setSyncStatus('syncing','Downloading...'); try{ const data=await window._fbDownload(window._user.uid); if(data){DB._d=data;DB.commit();setSyncStatus('online','Download complete ✓');showToast('⬇️ Data downloaded!');renderCompanies();}else{setSyncStatus('idle','No cloud data yet');showToast('ℹ️ No cloud data yet. Upload first.');} }catch(e){ setSyncStatus('idle','Download failed'); showToast('❌ '+e.message); } btn.disabled=false; }
+window.syncFromCloud=syncFromCloud;
+
+async function signInWithGoogle(){ if(!window._fbReady){showToast('⚠️ Set up Firebase first');goTo('screen-setup');return;} try{ await window._fbSignIn(); showToast('✅ Signed in!'); }catch(e){ showToast('❌ '+e.message); } }
+window.signInWithGoogle=signInWithGoogle;
+
+async function signOutUser(){ if(window._fbSignOut) await window._fbSignOut(); closeModal('modal-account'); showToast('Signed out'); goTo('screen-login'); }
+window.signOutUser=signOutUser;
+
+function clearSavedConfig(){ localStorage.removeItem('fb_config'); showToast('Config cleared — reload the page'); setTimeout(()=>location.reload(), 1500); }
+window.clearSavedConfig=clearSavedConfig;
+
+function saveFirebaseConfig(){
+  const cfg={
+    apiKey:            document.getElementById('cfg-apiKey').value.trim(),
+    authDomain:        document.getElementById('cfg-authDomain').value.trim(),
+    projectId:         document.getElementById('cfg-projectId').value.trim(),
+    storageBucket:     document.getElementById('cfg-storageBucket').value.trim(),
+    messagingSenderId: document.getElementById('cfg-messagingSenderId').value.trim(),
+    appId:             document.getElementById('cfg-appId').value.trim(),
+  };
+  if(!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId){showToast('⚠️ Fill in all fields');return;}
+  localStorage.setItem('fb_config',JSON.stringify(cfg));
+  const ok = initFB(cfg);
+  if(ok){ showToast('✅ Firebase connected!'); goTo('screen-login'); }
+  else { showToast('❌ Config error — check values'); }
+}
+window.saveFirebaseConfig=saveFirebaseConfig;
+
+function openAccountMenu(){ const user=window._user; const info=document.getElementById('account-info'); const so=document.getElementById('btn-sign-out'); if(user){ info.innerHTML=`<div style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${(user.displayName||'?')[0].toUpperCase()}</div><div><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px">${esc(user.displayName||'User')}</div><div style="font-size:12px;color:var(--text2)">${esc(user.email)}</div></div></div><p style="font-size:12px;color:var(--text2);line-height:1.6;margin-top:12px">Use ☁️ Upload to save data to cloud.<br/>Use ⬇️ Download on another device to get it.</p>`; so.style.display='block'; }else{ info.innerHTML=`<p style="color:var(--text2);font-size:13px;line-height:1.6">You're in offline mode. Sign in to sync across devices.</p>`; so.style.display='none'; } openModal('modal-account'); }
+window.openAccountMenu=openAccountMenu;
+
+// ── TABS ──────────────────────────────────────────────────────
+function switchTab(t){ tab=t; ['rates','calc','history'].forEach(x=>document.getElementById(`tab-${x}`).classList.toggle('hidden',x!==t)); document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['rates','calc','history'][i]===t)); renderTab(); }
+window.switchTab=switchTab;
+function renderTab(){ if(tab==='rates') renderRates(); else if(tab==='calc') renderCalc(); else renderHistory(); }
+
+// ── COMPANIES ─────────────────────────────────────────────────
+function renderCompanies(){ const s=document.getElementById('home-search').value.trim(); const cs=DB.getCompanies(s); const el=document.getElementById('company-list'); if(!cs.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🏢</div><p>No companies yet.<br/>Tap <strong>＋</strong> to add one.</p></div>`;return;} el.innerHTML=cs.map(c=>{const cgs=DB.getCompanyGames(c.id);return`<div class="list-item" onclick="openCompany('${c.id}')"><div class="list-item-icon">🏢</div><div class="list-item-body"><div class="list-item-title">${esc(c.name)}</div><div class="list-item-sub">${cgs.length} game${cgs.length!==1?'s':''} · tap to open</div></div><span style="color:var(--text2);font-size:18px">›</span></div>`;}).join(''); }
+window.renderCompanies=renderCompanies;
+function openAddCompany(){ document.getElementById('input-company-name').value=''; openModal('modal-add-company'); setTimeout(()=>document.getElementById('input-company-name').focus(),300); }
+window.openAddCompany=openAddCompany;
+function saveCompany(){ const n=document.getElementById('input-company-name').value.trim(); if(!n) return; const c=DB.addCompany(n); if(!c){showToast('⚠️ Already exists!');return;} closeModal('modal-add-company'); openCompany(c.id); }
+window.saveCompany=saveCompany;
+function openRenameCompany(){ const c=DB.get().companies.find(x=>x.id===cid); if(!c) return; document.getElementById('input-rename-company').value=c.name; openModal('modal-rename-company'); setTimeout(()=>document.getElementById('input-rename-company').focus(),300); }
+window.openRenameCompany=openRenameCompany;
+function saveRenameCompany(){ const n=document.getElementById('input-rename-company').value.trim(); if(!n) return; DB.updateCompany(cid,n); document.getElementById('company-header-name').textContent=n; closeModal('modal-rename-company'); showToast('✅ Renamed'); }
+window.saveRenameCompany=saveRenameCompany;
+function openDeleteCompany(){ openModal('modal-delete-company'); }
+window.openDeleteCompany=openDeleteCompany;
+function confirmDeleteCompany(){ DB.deleteCompany(cid); closeModal('modal-delete-company'); goTo('screen-home'); showToast('🗑️ Deleted'); }
+window.confirmDeleteCompany=confirmDeleteCompany;
+
+// ── MASTER GAMES ──────────────────────────────────────────────
+function renderMasterGames(){ const s=document.getElementById('games-search').value.trim(); const gs=DB.getGames(s); const el=document.getElementById('master-games-list'); if(!gs.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🎮</div><p>No games yet.<br/>Tap <strong>＋</strong> to add.</p></div>`;return;} el.innerHTML=gs.map(g=>`<div class="list-item"><div class="list-item-icon">🎮</div><div class="list-item-body"><div class="list-item-title">${esc(g.name)}</div></div><div class="list-item-actions"><button class="mini-btn edit" onclick="openEditGame('${g.id}')">✏️</button><button class="mini-btn del" onclick="delGame('${g.id}')">✕</button></div></div>`).join(''); }
+window.renderMasterGames=renderMasterGames;
+function openAddGame(){ document.getElementById('input-game-name').value=''; openModal('modal-add-game'); setTimeout(()=>document.getElementById('input-game-name').focus(),300); }
+window.openAddGame=openAddGame;
+function saveMasterGame(){ const n=document.getElementById('input-game-name').value.trim(); if(!n) return; const g=DB.addGame(n); if(!g){showToast('⚠️ Already exists!');return;} closeModal('modal-add-game'); renderMasterGames(); showToast(`✅ "${n}" added`); }
+window.saveMasterGame=saveMasterGame;
+function openEditGame(id){ editGId=id; const g=DB.get().games.find(x=>x.id===id); document.getElementById('input-edit-game-name').value=g.name; openModal('modal-edit-game'); setTimeout(()=>document.getElementById('input-edit-game-name').focus(),300); }
+window.openEditGame=openEditGame;
+function saveEditGame(){ const n=document.getElementById('input-edit-game-name').value.trim(); if(!n) return; DB.updateGame(editGId,n); closeModal('modal-edit-game'); renderMasterGames(); }
+window.saveEditGame=saveEditGame;
+function delGame(id){ const g=DB.get().games.find(x=>x.id===id); if(!confirm(`Delete "${g.name}"?\nThis removes it from all companies.`)) return; DB.deleteGame(id); renderMasterGames(); showToast('🗑️ Deleted'); }
+window.delGame=delGame;
+
+// ── RATES TAB ─────────────────────────────────────────────────
+function renderRates(){ const s=document.getElementById('rates-search').value.trim(); const cgs=DB.getCompanyGames(cid,s); const el=document.getElementById('rates-list'); const all=DB.getCompanyGames(cid); document.getElementById('company-header-sub').textContent=`${all.length} game${all.length!==1?'s':''} assigned`; if(!cgs.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🎮</div><p>${s?'No matches.':'No games assigned yet.<br/>Tap <strong>＋</strong> to assign.'}</p></div>`;return;} el.innerHTML=cgs.map(cg=>{const ex=Math.floor(1000/(cg.rate/100));return`<div class="list-item"><div class="list-item-icon">🎮</div><div class="list-item-body"><div class="list-item-title">${esc(cg.gameName)}</div><div class="list-item-sub"><span class="rate-badge">${cg.rate}%</span>&nbsp;$1,000 → ${ex.toLocaleString()} pts</div></div><div class="list-item-actions"><button class="mini-btn edit" onclick="openEditRate('${cg.cgId}','${esc(cg.gameName)}',${cg.rate})">✏️</button><button class="mini-btn del" onclick="removeCG('${cg.cgId}')">✕</button></div></div>`;}).join(''); }
+window.renderRates=renderRates;
+function openAssignGame(){ selGame=null; document.getElementById('assign-game-search').value=''; document.getElementById('input-assign-rate').value=''; renderAssignList(); openModal('modal-assign-game'); }
+window.openAssignGame=openAssignGame;
+function renderAssignList(){ const s=document.getElementById('assign-game-search').value.trim(); const gs=DB.getUnassigned(cid,s); const el=document.getElementById('assign-game-list'); if(!gs.length){el.innerHTML=`<p style="color:var(--text2);font-size:12px;text-align:center;padding:16px">No more games to assign.<br/>Add via ⚙️ on home screen.</p>`;return;} el.innerHTML=gs.map(g=>`<div class="game-option ${selGame===g.id?'selected':''}" onclick="selAssignGame('${g.id}',this)"><span class="game-option-name">${esc(g.name)}</span><div class="game-option-check">✓</div></div>`).join(''); }
+window.renderAssignGameList=renderAssignList;
+function selAssignGame(id,el){ selGame=id; document.querySelectorAll('#assign-game-list .game-option').forEach(x=>x.classList.remove('selected')); el.classList.add('selected'); }
+window.selectAssignGame=selAssignGame;
+function saveAssignGame(){ if(!selGame){showToast('⚠️ Select a game');return;} const rate=parseFloat(document.getElementById('input-assign-rate').value); if(!rate||rate<=0){showToast('⚠️ Enter valid rate');return;} DB.assignGame(cid,selGame,rate); closeModal('modal-assign-game'); renderRates(); showToast('✅ Assigned'); }
+window.saveAssignGame=saveAssignGame;
+function openEditRate(cgId,name,rate){ editCGId=cgId; document.getElementById('modal-edit-rate-title').textContent=`Edit Rate — ${name}`; document.getElementById('input-edit-rate').value=rate; openModal('modal-edit-rate'); setTimeout(()=>document.getElementById('input-edit-rate').focus(),300); }
+window.openEditRate=openEditRate;
+function saveEditRate(){ const rate=parseFloat(document.getElementById('input-edit-rate').value); if(!rate||rate<=0){showToast('⚠️ Invalid rate');return;} DB.updateRate(editCGId,rate); closeModal('modal-edit-rate'); renderRates(); showToast('✅ Rate updated'); }
+window.saveEditRate=saveEditRate;
+function removeCG(cgId){ DB.removeCG(cgId); renderRates(); }
+window.removeCompanyGame=removeCG;
+
+// ── CALCULATOR ────────────────────────────────────────────────
+function renderCalc(){ renderLines(); updateSummary(); }
+function openGamePicker(){ document.getElementById('picker-search').value=''; renderPickerList(); openModal('modal-game-picker'); }
+window.openGamePicker=openGamePicker;
+function renderPickerList(){ const s=document.getElementById('picker-search').value.trim(); const cgs=DB.getCompanyGames(cid,s); const inB=new Set(billLines.map(l=>l.gameId)); const av=cgs.filter(cg=>!inB.has(cg.gameId)); const el=document.getElementById('picker-list'); if(!av.length){el.innerHTML=`<p style="color:var(--text2);font-size:12px;text-align:center;padding:20px">${cgs.length===0?'No games assigned yet.':'All games already in bill.'}</p>`;return;} el.innerHTML=av.map(cg=>`<div class="game-option" onclick="addLine('${cg.gameId}','${esc(cg.gameName)}',${cg.rate})"><span class="game-option-name">${esc(cg.gameName)}</span><span class="game-option-rate">${cg.rate}%</span></div>`).join(''); }
+window.renderPickerList=renderPickerList;
+function addLine(gid,name,rate){ closeModal('modal-game-picker'); billLines.push({id:uid(),gameId:gid,gameName:name,rate,mode:'dollar',value:''}); renderLines(); updateSummary(); }
+window.addBillLine=addLine;
+function removeLine(id){ billLines=billLines.filter(l=>l.id!==id); renderLines(); updateSummary(); }
+window.removeBillLine=removeLine;
+function toggleMode(id){ const l=billLines.find(x=>x.id===id); if(!l) return; l.mode=l.mode==='dollar'?'points':'dollar'; l.value=''; renderLines(); updateSummary(); }
+window.toggleMode=toggleMode;
+function onInput(id,val){ const l=billLines.find(x=>x.id===id); if(!l) return; l.value=val; const r=calcResult(l); const el=document.getElementById(`result-${id}`); if(el){el.textContent=r||'—';el.className='calc-result'+(r?'':' empty');} updateSummary(); }
+window.onCalcInput=onInput;
+function calcResult(l){ const v=parseFloat(l.value); if(!v||v<=0) return ''; if(l.mode==='dollar'){ const pts=Math.floor(v/(l.rate/100)); return `${pts.toLocaleString()} pts`; } else { const pts=Math.floor(v); const d=pts*(l.rate/100); return `$${d.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`; } }
+function renderLines(){ const el=document.getElementById('bill-lines'); if(!billLines.length){el.innerHTML=`<div class="empty-state" style="padding:28px 16px"><div class="empty-icon">🧾</div><p>Tap <strong>＋ Add Game</strong> to build a bill.</p></div>`;return;} el.innerHTML=billLines.map(l=>{const r=calcResult(l);const isDollar=l.mode==='dollar';return`<div class="bill-line"><div class="bill-line-header"><span class="bill-game-name">🎮 ${esc(l.gameName)}</span><span class="bill-rate">${l.rate}%</span><button class="mode-toggle ${isDollar?'':'pts-mode'}" onclick="toggleMode('${l.id}')">${isDollar?'$ → Pts':'Pts → $'}</button><button class="remove-line" onclick="removeBillLine('${l.id}')">✕</button></div><div class="bill-line-calc"><input class="calc-input" type="number" min="0" step="${isDollar?'0.01':'1'}" placeholder="${isDollar?'$ amount':'Points'}" value="${esc(l.value)}" oninput="onCalcInput('${l.id}',this.value)"/><span class="calc-arrow">→</span><div class="calc-result${r?'':' empty'}" id="result-${l.id}">${r||'—'}</div></div></div>`;}).join(''); }
+function updateSummary(){ const sEl=document.getElementById('bill-summary'); const cb=document.getElementById('copy-bill-btn'); const clr=document.getElementById('clear-bill-btn'); const filled=billLines.filter(l=>parseFloat(l.value)>0); clr.style.display=billLines.length?'block':'none'; if(!filled.length){sEl.classList.remove('visible');cb.style.display='none';return;} let tot=0,html=''; for(const l of filled){const v=parseFloat(l.value);if(l.mode==='dollar'){const pts=Math.floor(v/(l.rate/100));tot+=v;html+=`<div class="bill-summary-line"><span class="bill-summary-game">${esc(l.gameName)}</span><span class="bill-summary-result">$${v.toLocaleString('en-US',{minimumFractionDigits:2})} → ${pts.toLocaleString()} pts</span></div>`;}else{const pts=Math.floor(v);const d=pts*(l.rate/100);tot+=d;html+=`<div class="bill-summary-line"><span class="bill-summary-game">${esc(l.gameName)}</span><span class="bill-summary-result">${pts.toLocaleString()} pts → $${d.toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>`;}} html+=`<hr class="bill-divider"/><div class="bill-total"><span>Total</span><span>$${tot.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`; sEl.innerHTML=html; sEl.classList.add('visible'); cb.style.display='block'; }
+function getBillText(){ const c=DB.get().companies.find(x=>x.id===cid); const f=billLines.filter(l=>parseFloat(l.value)>0); if(!f.length) return ''; let tot=0,lines=''; for(const l of f){const v=parseFloat(l.value);if(l.mode==='dollar'){const pts=Math.floor(v/(l.rate/100));tot+=v;lines+=`${l.gameName}: $${v.toLocaleString('en-US',{minimumFractionDigits:2})} → ${pts.toLocaleString()} pts\n`;}else{const pts=Math.floor(v);const d=pts*(l.rate/100);tot+=d;lines+=`${l.gameName}: ${pts.toLocaleString()} pts → $${d.toLocaleString('en-US',{minimumFractionDigits:2})}\n`;}} return`📋 ${c.name} — Bill\n${'─'.repeat(30)}\n${lines}${'─'.repeat(30)}\nTotal: $${tot.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}\n${new Date().toLocaleString()}`; }
+function copyBill(){ const t=getBillText(); if(!t) return; navigator.clipboard.writeText(t).then(()=>{DB.saveBill(cid,t);showToast('✅ Bill copied! Paste into WhatsApp.');}).catch(()=>{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);DB.saveBill(cid,t);showToast('✅ Bill copied!');});}
+window.copyBill=copyBill;
+function clearBill(){ if(!confirm('Clear all lines?')) return; billLines=[]; renderLines(); updateSummary(); }
+window.clearBill=clearBill;
+
+// ── HISTORY ───────────────────────────────────────────────────
+function renderHistory(){ const bills=DB.getBills(cid); const el=document.getElementById('history-list'); if(!bills.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📜</div><p>No bills yet.</p></div>`;return;} el.innerHTML=bills.map(b=>{const preview=b.text.split('\n').slice(2,5).join(' · ');return`<div class="history-item" onclick="viewBill('${b.id}')"><div class="history-date">🕐 ${new Date(b.date).toLocaleString()}</div><div class="history-preview">${esc(preview)}</div></div>`;}).join(''); }
+function viewBill(id){ const b=DB.get().bills.find(x=>x.id===id); if(!b) return; viewBillText=b.text; document.getElementById('view-bill-text').textContent=b.text; openModal('modal-view-bill'); }
+window.viewBill=viewBill;
+function copyHistoryBill(){ navigator.clipboard.writeText(viewBillText).then(()=>{closeModal('modal-view-bill');showToast('✅ Copied!');}).catch(()=>{const ta=document.createElement('textarea');ta.value=viewBillText;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);closeModal('modal-view-bill');showToast('✅ Copied!');}); }
+window.copyHistoryBill=copyHistoryBill;
+
+// ── MODALS ────────────────────────────────────────────────────
+function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+window.openModal=openModal; window.closeModal=closeModal;
+document.querySelectorAll('.modal-overlay').forEach(o=>{ o.addEventListener('click',e=>{ if(e.target===o) o.classList.add('hidden'); }); });
+[['input-company-name',saveCompany],['input-rename-company',saveRenameCompany],['input-game-name',saveMasterGame],['input-edit-game-name',saveEditGame],['input-edit-rate',saveEditRate],['input-assign-rate',saveAssignGame]].forEach(([id,fn])=>{ document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter') fn();}); });
+
+// ── TOAST ─────────────────────────────────────────────────────
+let toastT;
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2500); }
+window.showToast=showToast;
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
