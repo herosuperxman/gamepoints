@@ -29,9 +29,9 @@
       --orange: #f59e0b;
       --pink: #ec4899;
       --blue: #3b82f6;
-      --textPrimary: #f0eef6;
-      --textSecondary: #9890b0;
-      --textMuted: #5c5478;
+      --textPrimary: #f4f2fa;
+      --textSecondary: #b8b0d0;
+      --textMuted: #8078a0;
       --border: #2a2540;
       --borderLight: #3a3455;
     }
@@ -166,8 +166,8 @@
 
     /* LABEL */
     .label {
-      font-size: 11px; color: var(--textMuted); text-transform: uppercase;
-      letter-spacing: 1px; margin-bottom: 4px; display: block;
+      font-size: 11px; color: var(--textSecondary); text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 4px; display: block; font-weight: 600;
     }
 
     /* MODAL */
@@ -947,7 +947,7 @@
           <span class="conv-label" style="color:${mode==='pts2dollar'?'var(--cyan)':'var(--green)'}">
             ${mode==='pts2dollar'?'PTS → $':'$ → PTS'}
           </span>
-          <span style="color:var(--textSecondary)">🔄</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${mode==='pts2dollar'?'var(--cyan)':'var(--green)'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.3s;${mode==='dollar2pts'?'transform:rotate(180deg)':''}"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
         </div>
 
         <div id="billItemsContainer">
@@ -1417,10 +1417,29 @@
       const compBills = state.bills.filter(b => b.companyId === c._id).sort((a,b) => new Date(b.date)-new Date(a.date));
       return `
         <div class="card" style="margin-bottom:14px">
+          <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:12px">COMPANY NAME</h4>
+          <div id="companyNameDisplay" style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:16px;font-weight:700;flex:1">${esc(c.name)}</span>
+            <button class="btn btn-ghost btn-sm" id="editCompanyNameBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+              Edit
+            </button>
+          </div>
+          <div id="companyNameEdit" class="hidden" style="display:flex;align-items:center;gap:8px;margin-top:8px">
+            <input class="input" id="editCompanyNameInput" value="${esc(c.name)}" style="flex:1" />
+            <button class="btn btn-green btn-sm" id="saveCompanyName">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="cancelCompanyName">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between">
             <div>
               <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:4px">COMPANY STATUS</h4>
-              <p style="font-size:12px;color:var(--textMuted)">Toggle active/inactive</p>
+              <p style="font-size:12px;color:var(--textMuted)">Toggle active / inactive</p>
             </div>
             <div class="toggle" id="activeToggle">
               <div class="toggle-track ${isActive?'on':'off'}"><div class="toggle-thumb"></div></div>
@@ -1431,9 +1450,12 @@
         <div class="card" style="margin-bottom:14px">
           <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:10px">GENERATE REPORT</h4>
           <p style="font-size:12px;color:var(--textMuted);margin-bottom:14px">Download detailed Excel (CSV) report with loads, redemptions, payments, and balance.</p>
-          <button class="btn btn-green" id="downloadReport">📊 Download Excel Report</button>
+          <button class="btn btn-green" id="downloadReport">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Download Report
+          </button>
         </div>
-        <div class="card">
+        <div class="card" style="margin-bottom:14px">
           <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:10px">BILL HISTORY</h4>
           ${compBills.length===0?'<div style="padding:20px;text-align:center;color:var(--textMuted)">No bills recorded yet</div>':''}
           <div style="max-height:350px;overflow-y:auto">
@@ -1452,6 +1474,14 @@
             </div>`).join('')}
           </div>
         </div>
+        <div class="card" style="border-color:rgba(239,68,68,0.25)">
+          <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:4px;color:var(--red)">DANGER ZONE</h4>
+          <p style="font-size:12px;color:var(--textMuted);margin-bottom:14px">Permanently delete this company and all its assigned games, usernames, and bills.</p>
+          <button class="btn btn-red" id="deleteCompanyBtn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Delete Company
+          </button>
+        </div>
       `;
     }
 
@@ -1459,12 +1489,37 @@
       const c = state.companies[state.selectedCompanyId];
       if (!c) return;
 
+      // Edit company name
+      $('#editCompanyNameBtn').onclick = () => {
+        $('#companyNameDisplay').classList.add('hidden');
+        const editDiv = $('#companyNameEdit');
+        editDiv.classList.remove('hidden');
+        editDiv.style.display = 'flex';
+        $('#editCompanyNameInput').focus();
+      };
+      $('#cancelCompanyName').onclick = () => {
+        $('#companyNameDisplay').classList.remove('hidden');
+        $('#companyNameEdit').classList.add('hidden');
+      };
+      $('#saveCompanyName').onclick = async () => {
+        const newName = $('#editCompanyNameInput').value.trim();
+        if (!newName) return;
+        await db.doc(`${userPath()}/companies/${c._id}`).update({ name: newName });
+        await loadAllData(); render();
+      };
+      $('#editCompanyNameInput').onkeydown = (e) => {
+        if (e.key === 'Enter') $('#saveCompanyName').click();
+        if (e.key === 'Escape') $('#cancelCompanyName').click();
+      };
+
+      // Toggle active
       $('#activeToggle').onclick = async () => {
         const newVal = c.active === false ? true : false;
         await db.doc(`${userPath()}/companies/${c._id}`).update({ active: newVal });
         await loadAllData(); render();
       };
 
+      // Download report
       $('#downloadReport').onclick = () => {
         const compBills = state.bills.filter(b => b.companyId === c._id);
         let csv = 'Date,Game,Username,Points,Amount($),Payment Status,Amount Received,Balance Due\n';
@@ -1479,6 +1534,27 @@
         a.download = `${c.name}_report_${new Date().toISOString().slice(0,10)}.csv`;
         a.click();
         URL.revokeObjectURL(a.href);
+      };
+
+      // Delete company
+      $('#deleteCompanyBtn').onclick = async () => {
+        const confirmName = prompt(`Type "${c.name}" to confirm deletion:`);
+        if (confirmName !== c.name) { if (confirmName !== null) alert('Name did not match. Deletion cancelled.'); return; }
+        try {
+          // Delete subcollections first
+          const agSnap = await db.collection(`${userPath()}/companies/${c._id}/assignedGames`).get();
+          for (const doc of agSnap.docs) await doc.ref.delete();
+          const unSnap = await db.collection(`${userPath()}/companies/${c._id}/usernames`).get();
+          for (const doc of unSnap.docs) await doc.ref.delete();
+          // Delete company doc
+          await db.doc(`${userPath()}/companies/${c._id}`).delete();
+          await loadAllData();
+          state.view = 'companies';
+          state.selectedCompanyId = null;
+          render();
+        } catch (e) {
+          alert('Delete failed: ' + e.message);
+        }
       };
     }
 
