@@ -1509,6 +1509,14 @@
           const name = $('#unAddName').value.trim();
           const level = $('#unAddLevel').value.trim();
           if (selectedUnGames.length === 0 || !name) { alert('Select at least one game and enter a username'); return; }
+          const existing = c.usernames || [];
+          const dupes = selectedUnGames.filter(gameName => 
+            existing.some(u => u.username === name && u.gameName === gameName && u.level === level)
+          );
+          if (dupes.length > 0) {
+            alert('Duplicate user exists!\n\n"' + name + '" with level "' + (level||'none') + '" already exists in:\n• ' + dupes.join('\n• '));
+            return;
+          }
           for (const gameName of selectedUnGames) {
             await db.collection(`${userPath()}/companies/${cid}/usernames`).add({ gameName, username: name, level });
           }
