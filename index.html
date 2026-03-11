@@ -80,12 +80,32 @@
     }
     .header-logo { display:flex; align-items:center; gap:10px; cursor:pointer; }
     .header-logo-icon {
-      width:32px; height:32px; border-radius:8px;
+      width:34px; height:34px; border-radius:8px;
       background: linear-gradient(135deg, var(--purple), var(--cyan));
-      display:flex; align-items:center; justify-content:center; color:#fff; font-size:16px;
+      display:flex; align-items:center; justify-content:center; color:#fff; font-size:17px;
     }
-    .header-logo-text { font-family:'Orbitron',monospace; font-size:13px; font-weight:700; color:var(--purpleLight); }
-    .header-actions { display:flex; align-items:center; gap:6px; flex-wrap: wrap; }
+    .header-logo-text { font-family:'Orbitron',monospace; font-size:15px; font-weight:900; color:var(--purpleLight); letter-spacing:2px; }
+    .header-actions { display:flex; align-items:center; gap:8px; }
+
+    /* UTILITY BAR */
+    .utility-bar {
+      background: var(--bgCard); border-bottom: 1px solid var(--border);
+      padding: 8px 16px; display: flex; align-items: center; justify-content: center;
+      gap: 6px; position: sticky; top: 56px; z-index: 99;
+      backdrop-filter: blur(12px);
+    }
+    .util-btn {
+      padding: 6px 14px; font-size: 12px; font-weight: 600; border: none;
+      border-radius: 8px; cursor: pointer; display: inline-flex;
+      align-items: center; gap: 6px; transition: all 0.2s;
+      font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
+      letter-spacing: 0.5px; background: var(--bgInput);
+      color: var(--textSecondary); border: 1px solid var(--border);
+    }
+    .util-btn:hover { border-color: var(--purple); background: var(--bgHover); color: var(--textPrimary); transform: translateY(-1px); }
+    .util-btn:active { transform: translateY(0); }
+    .util-btn svg { width:15px; height:15px; flex-shrink:0; }
+    .util-btn.syncing { animation: pulse 1s infinite; }
 
     /* BUTTONS */
     .btn {
@@ -389,9 +409,11 @@
     /* RESPONSIVE */
     @media (max-width: 600px) {
       .bill-grid { grid-template-columns: 1fr; }
-      .header-actions .btn span.hide-mobile { display: none; }
       .tabs { font-size: 11px; }
       .tab { font-size: 11px; padding: 9px 8px; }
+      .util-btn span.util-label { display: none; }
+      .util-btn { padding: 6px 10px; }
+      .header-logo-text { font-size: 13px; letter-spacing: 1px; }
     }
 
     /* Hide */
@@ -560,13 +582,13 @@
       return `<header class="header">
         <div class="header-logo" id="headerLogo">
           <div class="header-logo-icon">🎮</div>
-          <span class="header-logo-text">PTS MGR</span>
+          <span class="header-logo-text">POINTS MANAGER</span>
         </div>
         <div class="header-actions">
-          <button class="btn btn-ghost btn-sm" id="btnSync">🔄 <span class="hide-mobile">Sync</span></button>
-          <button class="btn btn-ghost btn-sm" id="btnImport">📤 <span class="hide-mobile">Import</span></button>
-          <button class="btn btn-ghost btn-sm" id="btnExport">📥 <span class="hide-mobile">Export</span></button>
-          <button class="btn btn-ghost btn-sm" id="btnMasterGames">⚙️ <span class="hide-mobile">Master Games</span></button>
+          <button class="btn btn-ghost btn-sm" id="btnMasterGames" style="gap:6px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purpleLight)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <span>Games</span>
+          </button>
           <div style="position:relative" id="accountWrap">
             <div class="account-trigger" id="accountTrigger">
               ${photo}
@@ -578,23 +600,58 @@
                 <div style="font-size:13px;font-weight:600">${esc(u.displayName || '')}</div>
                 <div style="font-size:11px;color:var(--textMuted)">${esc(u.email)}</div>
               </div>
-              <div class="account-menu-item" id="menuExport">📥 Export Data</div>
-              <div class="account-menu-item" id="menuImport">📤 Import Data</div>
+              <div class="account-menu-item" id="menuExport">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export Data
+              </div>
+              <div class="account-menu-item" id="menuImport">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Import Data
+              </div>
               <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
-                <div class="account-menu-item danger" id="menuSignOut">🚪 Sign Out</div>
+                <div class="account-menu-item danger" id="menuSignOut">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Sign Out
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </header>`;
+      </header>
+      <div class="utility-bar" id="utilityBar">
+        <button class="util-btn" id="btnSync">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          <span class="util-label">Sync</span>
+        </button>
+        <button class="util-btn" id="btnSave">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+          <span class="util-label">Save</span>
+        </button>
+        <button class="util-btn" id="btnRetrieve">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="util-label">Retrieve</span>
+        </button>
+      </div>`;
     }
 
     function bindHeader() {
       $('#headerLogo').onclick = () => { state.view = 'companies'; state.selectedCompanyId = null; render(); };
-      $('#btnSync').onclick = async () => { await loadAllData(); render(); };
-      $('#btnImport').onclick = doImport;
-      $('#btnExport').onclick = doExport;
       $('#btnMasterGames').onclick = () => { state.masterGamesModalOpen = true; render(); };
+
+      // Utility bar buttons
+      $('#btnSync').onclick = async () => {
+        const btn = $('#btnSync');
+        btn.classList.add('syncing');
+        btn.querySelector('.util-label')&&(btn.querySelector('.util-label').textContent = 'Syncing...');
+        await loadAllData();
+        btn.classList.remove('syncing');
+        btn.querySelector('.util-label')&&(btn.querySelector('.util-label').textContent = 'Sync');
+        render();
+      };
+      $('#btnSave').onclick = doExport;
+      $('#btnRetrieve').onclick = doImport;
+
+      // Account menu
       $('#accountTrigger').onclick = (e) => {
         e.stopPropagation();
         const m = $('#accountMenu');
