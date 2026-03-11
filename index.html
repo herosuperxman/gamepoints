@@ -590,7 +590,7 @@
           <div style="position:relative" id="accountWrap">
             <div class="account-trigger" id="accountTrigger">
               ${photo}
-              <span class="account-name">${esc(u.displayName || u.email)}</span>
+              <span class="account-name">${esc((u.displayName || u.email).split(' ')[0])}</span>
               <span style="font-size:10px;color:var(--textMuted)">▼</span>
             </div>
             <div class="account-menu hidden" id="accountMenu">
@@ -799,12 +799,11 @@
       if (!list) return;
       const filtered = state.masterGames.filter(g => g.name.toLowerCase().includes(search));
       list.innerHTML = filtered.map(g => `
-        <div style="display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:8px" data-id="${g._id}">
+        <div class="mg-row" style="display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);gap:8px;cursor:pointer;transition:background 0.15s" data-id="${g._id}" onmouseenter="this.style.background='var(--bgHover)'" onmouseleave="this.style.background='transparent'">
           <span style="font-size:16px;color:var(--cyan)">🎮</span>
-          <span style="flex:2;font-weight:600;font-size:14px">${esc(g.name)}</span>
+          <span style="flex:1;font-weight:600;font-size:14px">${esc(g.name)}</span>
           <span class="badge ${(g.remainingPoints||0) > 0 ? 'badge-cyan' : 'badge-red'}">${(g.remainingPoints||0).toLocaleString()} pts</span>
-          <button class="btn btn-ghost btn-sm mg-edit" data-id="${g._id}">✏️</button>
-          <button class="btn btn-ghost btn-sm mg-del" data-id="${g._id}" style="color:var(--red)">🗑️</button>
+          <span style="color:var(--textMuted);font-size:12px">▸</span>
         </div>
       `).join('') || '<div style="padding:20px;text-align:center;color:var(--textMuted)">No games found</div>';
     }
@@ -812,7 +811,7 @@
     function bindMasterGamesModal() {
       $('#closeMasterGames').onclick = () => { state.masterGamesModalOpen = false; $('#masterGamesModal')?.remove(); };
       $('#masterGamesModal').onclick = (e) => { if (e.target.id === 'masterGamesModal') { state.masterGamesModalOpen = false; e.target.remove(); } };
-      $('#mgSearch').oninput = () => renderMasterGamesList();
+      $('#mgSearch').oninput = () => { renderMasterGamesList(); bindMasterGameListEvents(); };
       $('#mgAdd').onclick = async () => {
         const name = $('#mgNewName').value.trim();
         const pts = parseFloat($('#mgNewPoints').value) || 0;
@@ -827,40 +826,68 @@
     }
 
     function bindMasterGameListEvents() {
-      $$('.mg-del').forEach(btn => {
-        btn.onclick = async () => {
-          const id = btn.dataset.id;
-          if (!confirm('Delete this game?')) return;
-          await db.doc(`${userPath()}/masterGames/${id}`).delete();
-          await loadAllData();
-          renderMasterGamesList();
-          bindMasterGameListEvents();
-        };
-      });
-      $$('.mg-edit').forEach(btn => {
-        btn.onclick = () => {
-          const id = btn.dataset.id;
+      $$('.mg-row').forEach(row => {
+        row.onclick = () => {
+          const id = row.dataset.id;
           const g = state.masterGames.find(x => x._id === id);
           if (!g) return;
-          const row = btn.closest('[data-id]');
-          row.innerHTML = `
-            <input class="input" value="${esc(g.name)}" id="editName_${id}" style="flex:2"/>
-            <input class="input" type="number" value="${g.remainingPoints||0}" id="editPts_${id}" style="flex:1"/>
-            <button class="btn btn-green btn-sm" id="saveEdit_${id}">✓</button>
-            <button class="btn btn-ghost btn-sm" id="cancelEdit_${id}">✕</button>
-          `;
-          $(`#saveEdit_${id}`).onclick = async () => {
-            const newName = $(`#editName_${id}`).value.trim();
-            const newPts = parseFloat($(`#editPts_${id}`).value) || 0;
-            if (!newName) return;
-            await db.doc(`${userPath()}/masterGames/${id}`).update({ name: newName, remainingPoints: newPts });
-            await loadAllData();
-            renderMasterGamesList();
-            bindMasterGameListEvents();
-          };
-          $(`#cancelEdit_${id}`).onclick = () => { renderMasterGamesList(); bindMasterGameListEvents(); };
+          showMasterGameDetail(g);
         };
       });
+    }
+
+    function showMasterGameDetail(g) {
+      // Remove existing detail if any
+      $('#mgDetailOverlay')?.remove();
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.id = 'mgDetailOverlay';
+      overlay.innerHTML = `<div class="modal fade-in" style="max-width:400px">
+        <div class="modal-header">
+          <h3 class="modal-title">EDIT GAME</h3>
+          <button class="btn btn-ghost btn-sm" id="closeMgDetail">✕</button>
+        </div>
+        <div style="margin-bottom:16px">
+          <span class="label">Game Name</span>
+          <input class="input" id="mgDetailName" value="${esc(g.name)}" />
+        </div>
+        <div style="margin-bottom:16px">
+          <span class="label">Remaining Points</span>
+          <input class="input" type="number" id="mgDetailPts" value="${g.remainingPoints||0}" />
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-green" id="mgDetailSave" style="flex:1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg>
+            Save
+          </button>
+          <button class="btn btn-red" id="mgDetailDelete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>`;
+      document.body.appendChild(overlay);
+
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      $('#closeMgDetail').onclick = () => overlay.remove();
+      $('#mgDetailSave').onclick = async () => {
+        const newName = $('#mgDetailName').value.trim();
+        const newPts = parseFloat($('#mgDetailPts').value) || 0;
+        if (!newName) return;
+        await db.doc(`${userPath()}/masterGames/${g._id}`).update({ name: newName, remainingPoints: newPts });
+        await loadAllData();
+        overlay.remove();
+        renderMasterGamesList();
+        bindMasterGameListEvents();
+      };
+      $('#mgDetailDelete').onclick = async () => {
+        if (!confirm('Delete "' + g.name + '"?')) return;
+        await db.doc(`${userPath()}/masterGames/${g._id}`).delete();
+        await loadAllData();
+        overlay.remove();
+        renderMasterGamesList();
+        bindMasterGameListEvents();
+      };
     }
 
     // ============================================================
@@ -1268,9 +1295,11 @@
       let totalPts = 0, totalDollars = 0;
       state.billItems.forEach(i => { const calc = calcLine(i); totalPts += calc.points; totalDollars += calc.dollars; });
       const received = state.paymentStatus==='partial'?parseFloat(state.partialAmount)||0 : state.paymentStatus==='received'?totalDollars:0;
+      const now = new Date();
+      const dateStr = now.getUTCFullYear() + '/' + String(now.getUTCMonth()+1).padStart(2,'0') + '/' + String(now.getUTCDate()).padStart(2,'0') + ' ' + String(now.getUTCHours()).padStart(2,'0') + ':' + String(now.getUTCMinutes()).padStart(2,'0') + ' UTC';
       const lines = [];
       lines.push(`${c.name} - Bill`);
-      lines.push(new Date().toUTCString());
+      lines.push(dateStr);
       lines.push('');
       state.billItems.forEach(item => {
         const calc = calcLine(item);
@@ -1278,9 +1307,14 @@
       });
       lines.push('');
       lines.push(`Total ($): ${fmtDol(totalDollars)}`);
-      if (state.paymentStatus !== 'received') {
-        lines.push(`Balance Due ($): ${fmtDol(totalDollars - received)}`);
+      if (state.paymentStatus === 'received') {
+        lines.push('Paid: Full');
+      } else if (state.paymentStatus === 'partial') {
+        lines.push(`Paid: $${fmtDol(received)}`);
+      } else {
+        lines.push('Paid: None');
       }
+      lines.push(`Balance Due ($): ${fmtDol(totalDollars - received)}`);
       return lines.join('\n');
     }
 
