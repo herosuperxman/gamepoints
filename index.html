@@ -1336,11 +1336,18 @@
           </div>
         </div>
         <div class="card" style="padding:12px;margin-bottom:14px;background:var(--bgInput)">
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-            <div style="flex:2;min-width:120px">
-              <span class="label">Game</span>
-              <select class="input" id="unAddGame"><option value="">Select game</option>${gameOptions}</select>
+          <div style="margin-bottom:10px">
+            <span class="label">Games <span id="unGameCount" style="color:var(--cyan);font-size:11px">(0 selected)</span></span>
+            <div class="search-wrap" style="margin-bottom:6px">
+              <span class="search-icon">🔍</span>
+              <input class="input input-search" id="unAddGameSearch" placeholder="Search games to select..." />
             </div>
+            <div id="unAddGameTags" style="display:flex;flex-wrap:wrap;gap:5px;max-height:120px;overflow-y:auto;padding:4px">
+              ${assigned.map(g => `<div class="game-tag" data-name="${esc(g.gameName)}">${esc(g.gameName)}</div>`).join('')}
+              ${assigned.length===0?'<span style="color:var(--textMuted);font-size:13px">No games assigned yet</span>':''}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div style="flex:2;min-width:120px">
               <span class="label">Username</span>
               <input class="input" id="unAddName" placeholder="Username" />
@@ -1466,12 +1473,45 @@
         if ($('#unGameFilter')) $('#unGameFilter').onchange = filterAndSearch;
         if ($('#unSearch')) $('#unSearch').oninput = filterAndSearch;
 
+        // Multi-game tag selection for adding usernames
+        let selectedUnGames = [];
+        const updateUnGameCount = () => {
+          const el = $('#unGameCount');
+          if (el) el.textContent = `(${selectedUnGames.length} selected)`;
+        };
+
+        if ($('#unAddGameSearch')) {
+          $('#unAddGameSearch').oninput = () => {
+            const q = $('#unAddGameSearch').value.toLowerCase();
+            $$('#unAddGameTags .game-tag').forEach(tag => {
+              tag.style.display = tag.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+            });
+          };
+        }
+
+        $$('#unAddGameTags .game-tag').forEach(tag => {
+          tag.onclick = () => {
+            const name = tag.dataset.name;
+            if (selectedUnGames.includes(name)) {
+              selectedUnGames = selectedUnGames.filter(n => n !== name);
+              tag.classList.remove('selected');
+              tag.textContent = name;
+            } else {
+              selectedUnGames.push(name);
+              tag.classList.add('selected');
+              tag.textContent = '✓ ' + name;
+            }
+            updateUnGameCount();
+          };
+        });
+
         $('#unAddBtn').onclick = async () => {
-          const game = $('#unAddGame').value;
           const name = $('#unAddName').value.trim();
           const level = $('#unAddLevel').value.trim();
-          if (!game || !name) return;
-          await db.collection(`${userPath()}/companies/${cid}/usernames`).add({ gameName: game, username: name, level });
+          if (selectedUnGames.length === 0 || !name) { alert('Select at least one game and enter a username'); return; }
+          for (const gameName of selectedUnGames) {
+            await db.collection(`${userPath()}/companies/${cid}/usernames`).add({ gameName, username: name, level });
+          }
           await loadAllData(); render();
         };
 
