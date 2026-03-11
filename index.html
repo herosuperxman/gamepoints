@@ -600,12 +600,16 @@
                 <div style="font-size:13px;font-weight:600">${esc(u.displayName || '')}</div>
                 <div style="font-size:11px;color:var(--textMuted)">${esc(u.email)}</div>
               </div>
+              <div class="account-menu-item" id="menuFullReport">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Full Report (All Companies)
+              </div>
               <div class="account-menu-item" id="menuExport">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Export Data
               </div>
               <div class="account-menu-item" id="menuImport">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Import Data
               </div>
               <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
@@ -618,18 +622,10 @@
           </div>
         </div>
       </header>
-      <div class="utility-bar" id="utilityBar">
+      <div class="utility-bar" id="utilityBar" style="justify-content:flex-end">
         <button class="util-btn" id="btnSync">
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
           <span class="util-label">Sync</span>
-        </button>
-        <button class="util-btn" id="btnSave">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
-          <span class="util-label">Save</span>
-        </button>
-        <button class="util-btn" id="btnRetrieve">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="util-label">Retrieve</span>
         </button>
       </div>`;
     }
@@ -638,7 +634,7 @@
       $('#headerLogo').onclick = () => { state.view = 'companies'; state.selectedCompanyId = null; render(); };
       $('#btnMasterGames').onclick = () => { state.masterGamesModalOpen = true; render(); };
 
-      // Utility bar buttons
+      // Utility bar - Sync only
       $('#btnSync').onclick = async () => {
         const btn = $('#btnSync');
         btn.classList.add('syncing');
@@ -648,8 +644,6 @@
         btn.querySelector('.util-label')&&(btn.querySelector('.util-label').textContent = 'Sync');
         render();
       };
-      $('#btnSave').onclick = doExport;
-      $('#btnRetrieve').onclick = doImport;
 
       // Account menu
       $('#accountTrigger').onclick = (e) => {
@@ -657,6 +651,7 @@
         const m = $('#accountMenu');
         m.classList.toggle('hidden');
       };
+      $('#menuFullReport').onclick = () => { doFullReport(); $('#accountMenu').classList.add('hidden'); };
       $('#menuExport').onclick = () => { doExport(); $('#accountMenu').classList.add('hidden'); };
       $('#menuImport').onclick = () => { doImport(); $('#accountMenu').classList.add('hidden'); };
       $('#menuSignOut').onclick = () => { auth.signOut(); };
@@ -710,6 +705,64 @@
         } catch (er) { alert('Import failed: ' + er.message); }
       };
       input.click();
+    }
+
+    function doFullReport() {
+      // Generate CSV with ALL companies data in one sheet
+      let csv = 'Company,Status,Game,Rate(%),Username,Level,Date,Points,Amount($),Type,Payment Status,Amount Received,Balance Due\n';
+      const companies = Object.values(state.companies);
+      const bills = state.bills;
+
+      // First add all bill transactions
+      for (const comp of companies) {
+        const compBills = bills.filter(b => b.companyId === comp._id);
+        if (compBills.length > 0) {
+          for (const bill of compBills) {
+            for (const item of (bill.items || [])) {
+              const type = (item.points || 0) < 0 ? 'Redeem' : 'Load';
+              csv += `"${comp.name}","${comp.active!==false?'Active':'Inactive'}","${item.gameName||''}","${getGameRate(comp, item.gameName)}","${item.username||''}","${getUserLevel(comp, item.username, item.gameName)}","${new Date(bill.date).toLocaleString()}",${(item.points||0).toFixed(2)},${(item.dollars||0).toFixed(2)},"${type}","${bill.paymentStatus}",${bill.partialAmount||0},${bill.balanceDue||0}\n`;
+            }
+          }
+        } else {
+          // Still list the company even if no bills
+          csv += `"${comp.name}","${comp.active!==false?'Active':'Inactive'}","","","","","",0,0,"","",0,0\n`;
+        }
+      }
+
+      // Add summary section
+      csv += '\n\nSUMMARY BY COMPANY\n';
+      csv += 'Company,Total Points Loaded,Total Points Redeemed,Total Amount($),Total Received($),Total Balance Due($)\n';
+      for (const comp of companies) {
+        const compBills = bills.filter(b => b.companyId === comp._id);
+        let loaded = 0, redeemed = 0, totalAmt = 0, totalReceived = 0, totalDue = 0;
+        for (const bill of compBills) {
+          for (const item of (bill.items || [])) {
+            if ((item.points || 0) >= 0) loaded += (item.points || 0);
+            else redeemed += Math.abs(item.points || 0);
+          }
+          totalAmt += (bill.totalDollars || 0);
+          totalReceived += (bill.partialAmount || 0);
+          totalDue += (bill.balanceDue || 0);
+        }
+        csv += `"${comp.name}",${loaded.toFixed(2)},${redeemed.toFixed(2)},${totalAmt.toFixed(2)},${totalReceived.toFixed(2)},${totalDue.toFixed(2)}\n`;
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `full_report_all_companies_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function getGameRate(company, gameName) {
+      const ag = (company.assignedGames || []).find(g => g.gameName === gameName);
+      return ag ? (ag.rate || 0) : '';
+    }
+
+    function getUserLevel(company, username, gameName) {
+      const un = (company.usernames || []).find(u => u.username === username && u.gameName === gameName);
+      return un ? (un.level || '') : '';
     }
 
     // ============================================================
@@ -1018,7 +1071,7 @@
         return 0;
       });
       const unOptions = sorted.map(u =>
-        `<option value="${esc(u.username)}" ${item.username===u.username?'selected':''}>${esc(u.username)}${u.level?' (Lv.'+esc(u.level)+')':''}${state.recentUsernames.includes(u.username)?' ★':''}</option>`
+        `<option value="${esc(u.username)}" ${item.username===u.username?'selected':''}>${esc(u.username)}${u.level?' ['+esc(u.level)+']':''}${state.recentUsernames.includes(u.username)?' ★':''}</option>`
       ).join('');
 
       return `<div class="bill-item card" style="margin-bottom:8px;padding:14px" data-idx="${idx}">
@@ -1050,7 +1103,7 @@
         ${item.value ? `<div class="bill-result">
           <span class="pts"><strong>Pts:</strong> ${calc.points.toFixed(2)}</span>
           <span class="amt"><strong>$:</strong> ${calc.dollars.toFixed(2)}</span>
-          <span class="rate">Rate: ${item.rate}</span>
+          <span class="rate">Rate: ${item.rate}%</span>
         </div>` : ''}
       </div>`;
     }
@@ -1122,7 +1175,7 @@
             if (!result) { render(); return; }
             result.innerHTML = `<span class="pts"><strong>Pts:</strong> ${calc.points.toFixed(2)}</span>
               <span class="amt"><strong>$:</strong> ${calc.dollars.toFixed(2)}</span>
-              <span class="rate">Rate: ${item.rate}</span>`;
+              <span class="rate">Rate: ${item.rate}%</span>`;
           }
           // Update totals
           updateTotals();
@@ -1246,8 +1299,8 @@
             </div>
             <div style="display:flex;gap:8px;align-items:flex-end">
               <div style="flex:1">
-                <span class="label">Rate ($/pt)</span>
-                <input class="input" type="number" id="assignRate" placeholder="e.g. 0.01" />
+                <span class="label">Rate (%)</span>
+                <input class="input" type="number" id="assignRate" placeholder="e.g. 10" />
               </div>
               <button class="btn btn-green" id="confirmAssign">Assign</button>
             </div>
@@ -1257,7 +1310,7 @@
           ${assigned.map(g => `<div class="assigned-row" data-id="${g._id}">
             <span style="font-size:16px;color:var(--cyan);margin-right:10px">🎮</span>
             <span style="flex:1;font-weight:600;font-size:14px">${esc(g.gameName)}</span>
-            <span class="badge badge-cyan">$${g.rate||0}/pt</span>
+            <span class="badge badge-cyan">${g.rate||0}%</span>
             <button class="btn btn-ghost btn-sm rate-edit" data-id="${g._id}" style="margin-left:6px">✏️</button>
             <button class="btn btn-ghost btn-sm rate-del" data-id="${g._id}" style="color:var(--red)">🗑️</button>
           </div>`).join('')}
@@ -1290,21 +1343,31 @@
               <span class="label">Username</span>
               <input class="input" id="unAddName" placeholder="Username" />
             </div>
-            <div style="flex:1;min-width:60px">
+            <div style="flex:1.5;min-width:100px">
               <span class="label">Level</span>
-              <input class="input" id="unAddLevel" placeholder="Lv" />
+              <select class="input" id="unAddLevel">
+                <option value="">Select level</option>
+                <option value="Master">Master</option>
+                <option value="Distributor">Distributor</option>
+                <option value="Sub-Distributor">Sub-Distributor</option>
+                <option value="Store">Store</option>
+                <option value="Player">Player</option>
+              </select>
             </div>
             <button class="btn btn-green" id="unAddBtn">➕ Add</button>
           </div>
         </div>
         <div id="usernamesList">
-          ${allUsernames.map(u => `<div class="username-row" data-id="${u._id}" data-game="${esc(u.gameName)}">
+          ${allUsernames.map(u => {
+            const levelColors = {Master:'badge-red',Distributor:'badge-orange','Sub-Distributor':'badge-cyan',Store:'badge-purple',Player:'badge-green'};
+            const lvBadge = u.level ? `<span class="badge ${levelColors[u.level]||'badge-orange'}" style="margin-left:4px">${esc(u.level)}</span>` : '';
+            return `<div class="username-row" data-id="${u._id}" data-game="${esc(u.gameName)}">
             <span style="font-size:14px;color:var(--pink);margin-right:8px">👤</span>
             <span style="flex:1;font-weight:600;font-size:13px">${esc(u.username)}</span>
             <span class="badge badge-purple">${esc(u.gameName)}</span>
-            ${u.level?`<span class="badge badge-orange" style="margin-left:4px">Lv.${esc(u.level)}</span>`:''}
+            ${lvBadge}
             <button class="btn btn-ghost btn-sm un-del" data-id="${u._id}" style="margin-left:6px;color:var(--red)">🗑️</button>
-          </div>`).join('')}
+          </div>`;}).join('')}
           ${allUsernames.length===0?'<div style="padding:30px;text-align:center;color:var(--textMuted)">No usernames added yet</div>':''}
         </div>
       `;
