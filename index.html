@@ -1013,11 +1013,11 @@
             <div style="display:flex;gap:24px;margin-bottom:14px">
               <div>
                 <div style="font-size:11px;color:var(--textMuted);text-transform:uppercase">Points</div>
-                <div style="font-size:20px;font-weight:700;color:var(--cyan);font-family:'Orbitron',monospace">${totalPts.toFixed(2)}</div>
+                <div style="font-size:20px;font-weight:700;color:var(--cyan);font-family:'Orbitron',monospace">${fmtPts(totalPts)}</div>
               </div>
               <div>
                 <div style="font-size:11px;color:var(--textMuted);text-transform:uppercase">Amount</div>
-                <div style="font-size:20px;font-weight:700;color:var(--green);font-family:'Orbitron',monospace">$${totalDollars.toFixed(2)}</div>
+                <div style="font-size:20px;font-weight:700;color:var(--green);font-family:'Orbitron',monospace">$${fmtDol(totalDollars)}</div>
               </div>
             </div>
             <div style="border-top:1px solid var(--border);padding-top:12px">
@@ -1088,10 +1088,13 @@
           </div>
           <div>
             <span class="label">Username</span>
-            <select class="input bill-user-select" data-idx="${idx}">
-              <option value="">Select user</option>
-              ${unOptions}
-            </select>
+            <div style="position:relative" class="bill-user-wrap" data-idx="${idx}">
+              <input class="input bill-user-search" data-idx="${idx}" placeholder="Search / select user..." value="${esc(item.username)}" autocomplete="off" />
+              <div class="bill-user-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bgCard);border:1px solid var(--border);border-radius:8px;z-index:50;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+                <div class="dropdown-item" data-user="" style="color:var(--textMuted);font-style:italic">No Username</div>
+                ${sorted.map(u => `<div class="dropdown-item bill-user-option" data-user="${esc(u.username)}" data-idx="${idx}">${esc(u.username)}${u.level?' <span style=\\"font-size:11px;color:var(--textMuted)\\">['+esc(u.level)+']</span>':''}${state.recentUsernames.includes(u.username)?' <span style=\\"color:var(--orange)\\">★</span>':''}</div>`).join('')}
+              </div>
+            </div>
           </div>
           <div>
             <span class="label">${state.convMode==='pts2dollar'?'Points':'Amount ($)'}</span>
@@ -1099,8 +1102,8 @@
           </div>
         </div>
         ${item.value ? `<div class="bill-result">
-          <span class="pts"><strong>Pts:</strong> ${calc.points.toFixed(2)}</span>
-          <span class="amt"><strong>$:</strong> ${calc.dollars.toFixed(2)}</span>
+          <span class="pts"><strong>Pts:</strong> ${fmtPts(calc.points)}</span>
+          <span class="amt"><strong>$:</strong> ${fmtDol(calc.dollars)}</span>
           <span class="rate">Rate: ${item.rate}%</span>
         </div>` : ''}
       </div>`;
@@ -1109,12 +1112,18 @@
     function calcLine(item) {
       const val = parseFloat(item.value) || 0;
       const rate = item.rate || 0;
+      const rateDecimal = rate / 100; // Convert percentage to decimal
       if (state.convMode === 'pts2dollar') {
-        return { points: val, dollars: rate ? val * rate : 0 };
+        // Entering points, calculate dollars: points * rate%
+        return { points: val, dollars: rateDecimal ? val * rateDecimal : 0 };
       } else {
-        return { dollars: val, points: rate ? val / rate : 0 };
+        // Entering dollars, calculate points: dollars / rate% (truncate points, no decimal)
+        return { dollars: val, points: rateDecimal ? Math.trunc(val / rateDecimal) : 0 };
       }
     }
+
+    function fmtPts(v) { return Number.isInteger(v) ? v.toString() : v.toFixed(2); }
+    function fmtDol(v) { return v.toFixed(2); }
 
     function bindBilling() {
       const c = state.companies[state.selectedCompanyId];
@@ -1149,15 +1158,42 @@
         };
       });
 
-      $$('.bill-user-select').forEach(sel => {
-        sel.onchange = () => {
-          const idx = parseInt(sel.dataset.idx);
-          const un = sel.value;
-          state.billItems[idx].username = un;
-          if (un) {
-            state.recentUsernames = [un, ...state.recentUsernames.filter(u => u !== un)].slice(0, 10);
-          }
+      // Searchable username dropdowns in billing
+      $$('.bill-user-search').forEach(inp => {
+        const idx = parseInt(inp.dataset.idx);
+        const dropdown = $(`.bill-user-dropdown[data-idx="${idx}"]`);
+        if (!dropdown) return;
+
+        inp.onfocus = () => { dropdown.classList.remove('hidden'); };
+        inp.oninput = () => {
+          dropdown.classList.remove('hidden');
+          const q = inp.value.toLowerCase();
+          dropdown.querySelectorAll('.dropdown-item').forEach(opt => {
+            const user = opt.dataset.user || '';
+            const text = opt.textContent.toLowerCase();
+            // Always show "No Username" option
+            opt.style.display = (user === '' || text.includes(q)) ? '' : 'none';
+          });
         };
+
+        dropdown.querySelectorAll('.dropdown-item').forEach(opt => {
+          opt.onclick = () => {
+            const un = opt.dataset.user;
+            state.billItems[idx].username = un;
+            inp.value = un;
+            dropdown.classList.add('hidden');
+            if (un) {
+              state.recentUsernames = [un, ...state.recentUsernames.filter(u => u !== un)].slice(0, 10);
+            }
+          };
+        });
+      });
+
+      // Close all username dropdowns when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.bill-user-wrap')) {
+          $$('.bill-user-dropdown').forEach(d => d.classList.add('hidden'));
+        }
       });
 
       $$('.bill-value-input').forEach(inp => {
@@ -1171,8 +1207,8 @@
           let result = card.querySelector('.bill-result');
           if (inp.value) {
             if (!result) { render(); return; }
-            result.innerHTML = `<span class="pts"><strong>Pts:</strong> ${calc.points.toFixed(2)}</span>
-              <span class="amt"><strong>$:</strong> ${calc.dollars.toFixed(2)}</span>
+            result.innerHTML = `<span class="pts"><strong>Pts:</strong> ${fmtPts(calc.points)}</span>
+              <span class="amt"><strong>$:</strong> ${fmtDol(calc.dollars)}</span>
               <span class="rate">Rate: ${item.rate}%</span>`;
           }
           // Update totals
@@ -1231,18 +1267,20 @@
     function generateBillText(c) {
       let totalPts = 0, totalDollars = 0;
       state.billItems.forEach(i => { const calc = calcLine(i); totalPts += calc.points; totalDollars += calc.dollars; });
-      const lines = [`BILL - ${c.name}`, `Date: ${new Date().toLocaleString()}`, `Mode: ${state.convMode==='pts2dollar'?'Points → $':'$ → Points'}`, '','Items:','-'.repeat(50)];
-      state.billItems.forEach((item, i) => {
-        const calc = calcLine(item);
-        lines.push(`${i+1}. ${item.gameName||'N/A'} | User: ${item.username||'N/A'}`);
-        lines.push(`   Points: ${calc.points.toFixed(2)} | Amount: $${calc.dollars.toFixed(2)}`);
-      });
-      lines.push('-'.repeat(50));
-      lines.push(`TOTAL: ${totalPts.toFixed(2)} pts | $${totalDollars.toFixed(2)}`);
-      lines.push('');
       const received = state.paymentStatus==='partial'?parseFloat(state.partialAmount)||0 : state.paymentStatus==='received'?totalDollars:0;
-      lines.push(`Payment: ${state.paymentStatus==='received'?'RECEIVED IN FULL':state.paymentStatus==='partial'?'PARTIAL - $'+received+' received':'NOT RECEIVED'}`);
-      if (state.paymentStatus !== 'received') lines.push(`Balance Due: $${(totalDollars-received).toFixed(2)}`);
+      const lines = [];
+      lines.push(`${c.name} - Bill`);
+      lines.push(new Date().toUTCString());
+      lines.push('');
+      state.billItems.forEach(item => {
+        const calc = calcLine(item);
+        lines.push(`${item.gameName||'-'} | ${item.username||'-'} | ${fmtPts(calc.points)} : $${fmtDol(calc.dollars)}`);
+      });
+      lines.push('');
+      lines.push(`Total ($): ${fmtDol(totalDollars)}`);
+      if (state.paymentStatus !== 'received') {
+        lines.push(`Balance Due ($): ${fmtDol(totalDollars - received)}`);
+      }
       return lines.join('\n');
     }
 
