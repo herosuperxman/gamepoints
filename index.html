@@ -285,8 +285,8 @@
     .bill-item .card { padding: 14px; }
     .bill-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
     .bill-result {
-      margin-top:8px; padding:6px 10px; border-radius:6px;
-      background:var(--bgInput); display:flex; gap:16px; font-size:13px;
+      margin-top:8px; padding:8px 12px; border-radius:6px;
+      background:var(--bgInput); display:flex; gap:16px; font-size:13px; font-weight:600;
     }
     .bill-result .pts { color: var(--cyan); }
     .bill-result .amt { color: var(--green); }
@@ -330,11 +330,14 @@
 
     /* CONVERSION TOGGLE */
     .conv-toggle {
-      display:inline-flex; align-items:center; gap:8px; padding:8px 16px;
-      border-radius:10px; cursor:pointer; user-select:none; transition:all 0.3s;
+      display:inline-flex; align-items:center; gap:10px; padding:10px 20px;
+      border-radius:12px; cursor:pointer; user-select:none; transition:all 0.3s;
+      box-shadow: 0 0 20px rgba(124,58,237,0.15);
     }
+    .conv-toggle:hover { box-shadow: 0 0 30px rgba(124,58,237,0.3); transform: translateY(-1px); }
+    .conv-toggle:active { transform: translateY(0); }
     .conv-toggle .conv-label {
-      font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+      font-family:'Orbitron',monospace; font-size:15px; font-weight:800; letter-spacing:1px;
     }
 
     /* PAYMENT BUTTONS */
@@ -361,7 +364,7 @@
       -webkit-background-clip:text; -webkit-text-fill-color:transparent;
       margin-bottom:8px;
     }
-    .login-subtitle { color:var(--textSecondary); font-size:15px; margin-bottom:28px; }
+    .login-subtitle { color:var(--textSecondary); font-size:15px; margin-bottom:28px; line-height:1.6; }
     .google-btn {
       width:100%; padding:13px 24px; border-radius:12px;
       border:1px solid var(--border); background:var(--bgInput);
@@ -437,6 +440,7 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
+    db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
 
     // ============================================================
     // STATE
@@ -505,6 +509,7 @@
     // ============================================================
     // RENDER ENGINE
     // ============================================================
+    let skipPushState = false;
     function render() {
       const app = $('#app');
       switch (state.view) {
@@ -514,7 +519,23 @@
         case 'company': app.innerHTML = renderHeader() + renderCompanyScreen(); bindHeader(); bindCompanyScreen(); break;
       }
       if (state.masterGamesModalOpen) { renderMasterGamesModal(); bindMasterGamesModal(); }
+      // Push history state for back button
+      if (!skipPushState && (state.view === 'companies' || state.view === 'company')) {
+        history.pushState({ view: state.view, companyId: state.selectedCompanyId }, '');
+      }
+      skipPushState = false;
     }
+
+    window.addEventListener('popstate', (e) => {
+      if (e.state) {
+        state.view = e.state.view;
+        state.selectedCompanyId = e.state.companyId || null;
+      } else {
+        if (state.view === 'company') { state.view = 'companies'; state.selectedCompanyId = null; }
+      }
+      skipPushState = true;
+      render();
+    });
 
     // ============================================================
     // RENDER: LOADING
@@ -548,6 +569,11 @@
               Sign in with Google
             </button>
             <div id="loginError" style="color:var(--red);margin-top:10px;font-size:13px" class="hidden"></div>
+          </div>
+          <div style="margin-top:20px;padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2)">
+            <p style="font-size:12px;color:var(--orange);line-height:1.5;text-align:left">
+              <strong style="font-size:13px">⚠ Notice:</strong> Accounts without an active subscription may be disabled or removed at any time. Please contact your upline manager to activate your subscription.
+            </p>
           </div>
         </div>
       </div>`;
@@ -598,9 +624,9 @@
                 <div style="font-size:13px;font-weight:600">${esc(u.displayName || '')}</div>
                 <div style="font-size:11px;color:var(--textMuted)">${esc(u.email)}</div>
               </div>
-              <div class="account-menu-item" id="menuFullReport">
+              <div class="account-menu-item" id="menuGenReport">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                Full Report (All Companies)
+                Generate Report
               </div>
               <div class="account-menu-item" id="menuExport">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -649,7 +675,7 @@
         const m = $('#accountMenu');
         m.classList.toggle('hidden');
       };
-      $('#menuFullReport').onclick = () => { doFullReport(); $('#accountMenu').classList.add('hidden'); };
+      $('#menuGenReport').onclick = () => { $('#accountMenu').classList.add('hidden'); showReportDatePicker('all'); };
       $('#menuExport').onclick = () => { doExport(); $('#accountMenu').classList.add('hidden'); };
       $('#menuImport').onclick = () => { doImport(); $('#accountMenu').classList.add('hidden'); };
       $('#menuSignOut').onclick = () => { auth.signOut(); };
@@ -705,13 +731,49 @@
       input.click();
     }
 
-    function doFullReport() {
-      // Generate CSV with ALL companies data in one sheet
+    function showReportDatePicker(scope, companyId) {
+      $('#reportDateModal')?.remove();
+      const today = new Date().toISOString().slice(0,10);
+      const firstOfMonth = today.slice(0,8) + '01';
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.id = 'reportDateModal';
+      overlay.innerHTML = `<div class="modal fade-in" style="max-width:380px">
+        <div class="modal-header">
+          <h3 class="modal-title">GENERATE REPORT</h3>
+          <button class="btn btn-ghost btn-sm" id="closeReportDate">✕</button>
+        </div>
+        <p style="font-size:13px;color:var(--textSecondary);margin-bottom:14px">${scope==='all'?'All companies':'Company'} report within date range</p>
+        <div style="margin-bottom:12px">
+          <span class="label">From Date</span>
+          <input class="input" type="date" id="reportFrom" value="${firstOfMonth}" />
+        </div>
+        <div style="margin-bottom:16px">
+          <span class="label">To Date</span>
+          <input class="input" type="date" id="reportTo" value="${today}" />
+        </div>
+        <button class="btn btn-green btn-full" id="reportDownload">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Report
+        </button>
+      </div>`;
+      document.body.appendChild(overlay);
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      $('#closeReportDate').onclick = () => overlay.remove();
+      $('#reportDownload').onclick = () => {
+        const from = new Date($('#reportFrom').value + 'T00:00:00');
+        const to = new Date($('#reportTo').value + 'T23:59:59');
+        if (scope === 'all') doFullReport(from, to);
+        else doCompanyReport(companyId, from, to);
+        overlay.remove();
+      };
+    }
+
+    function doFullReport(fromDate, toDate) {
       let csv = 'Company,Status,Game,Rate(%),Username,Level,Date,Points,Amount($),Type,Payment Status,Amount Received,Balance Due\n';
       const companies = Object.values(state.companies);
-      const bills = state.bills;
+      const bills = state.bills.filter(b => { const d = new Date(b.date); return d >= fromDate && d <= toDate; });
 
-      // First add all bill transactions
       for (const comp of companies) {
         const compBills = bills.filter(b => b.companyId === comp._id);
         if (compBills.length > 0) {
@@ -721,36 +783,33 @@
               csv += `"${comp.name}","${comp.active!==false?'Active':'Inactive'}","${item.gameName||''}","${getGameRate(comp, item.gameName)}","${item.username||''}","${getUserLevel(comp, item.username, item.gameName)}","${new Date(bill.date).toLocaleString()}",${(item.points||0).toFixed(2)},${(item.dollars||0).toFixed(2)},"${type}","${bill.paymentStatus}",${bill.partialAmount||0},${bill.balanceDue||0}\n`;
             }
           }
-        } else {
-          // Still list the company even if no bills
-          csv += `"${comp.name}","${comp.active!==false?'Active':'Inactive'}","","","","","",0,0,"","",0,0\n`;
         }
       }
-
-      // Add summary section
       csv += '\n\nSUMMARY BY COMPANY\n';
       csv += 'Company,Total Points Loaded,Total Points Redeemed,Total Amount($),Total Received($),Total Balance Due($)\n';
       for (const comp of companies) {
         const compBills = bills.filter(b => b.companyId === comp._id);
-        let loaded = 0, redeemed = 0, totalAmt = 0, totalReceived = 0, totalDue = 0;
-        for (const bill of compBills) {
-          for (const item of (bill.items || [])) {
-            if ((item.points || 0) >= 0) loaded += (item.points || 0);
-            else redeemed += Math.abs(item.points || 0);
-          }
-          totalAmt += (bill.totalDollars || 0);
-          totalReceived += (bill.partialAmount || 0);
-          totalDue += (bill.balanceDue || 0);
-        }
-        csv += `"${comp.name}",${loaded.toFixed(2)},${redeemed.toFixed(2)},${totalAmt.toFixed(2)},${totalReceived.toFixed(2)},${totalDue.toFixed(2)}\n`;
+        let loaded=0,redeemed=0,totalAmt=0,totalReceived=0,totalDue=0;
+        for (const bill of compBills) { for (const item of (bill.items||[])) { if((item.points||0)>=0) loaded+=(item.points||0); else redeemed+=Math.abs(item.points||0); } totalAmt+=(bill.totalDollars||0); totalReceived+=(bill.partialAmount||0); totalDue+=(bill.balanceDue||0); }
+        if (compBills.length>0) csv += `"${comp.name}",${loaded.toFixed(2)},${redeemed.toFixed(2)},${totalAmt.toFixed(2)},${totalReceived.toFixed(2)},${totalDue.toFixed(2)}\n`;
       }
-
       const blob = new Blob([csv], { type: 'text/csv' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `full_report_all_companies_${new Date().toISOString().slice(0,10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `full_report_${fromDate.toISOString().slice(0,10)}_to_${toDate.toISOString().slice(0,10)}.csv`;
+      a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    function doCompanyReport(companyId, fromDate, toDate) {
+      const c = state.companies[companyId]; if (!c) return;
+      const compBills = state.bills.filter(b => b.companyId===companyId && new Date(b.date)>=fromDate && new Date(b.date)<=toDate);
+      let csv = 'Date,Game,Username,Points,Amount($),Payment Status,Amount Received,Balance Due\n';
+      compBills.forEach(bill => { (bill.items||[]).forEach(item => {
+        csv += `"${new Date(bill.date).toLocaleString()}","${item.gameName||''}","${item.username||''}",${(item.points||0).toFixed(2)},${(item.dollars||0).toFixed(2)},"${bill.paymentStatus}",${bill.partialAmount||0},${bill.balanceDue||0}\n`;
+      }); });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `${c.name}_report_${fromDate.toISOString().slice(0,10)}_to_${toDate.toISOString().slice(0,10)}.csv`;
+      a.click(); URL.revokeObjectURL(a.href);
     }
 
     function getGameRate(company, gameName) {
@@ -874,14 +933,19 @@
         const newName = $('#mgDetailName').value.trim();
         const newPts = parseFloat($('#mgDetailPts').value) || 0;
         if (!newName) return;
+        const btn = $('#mgDetailSave');
+        btn.disabled = true; btn.innerHTML = 'Saving...';
         await db.doc(`${userPath()}/masterGames/${g._id}`).update({ name: newName, remainingPoints: newPts });
         await loadAllData();
         overlay.remove();
+        // Re-render the master games list in the modal behind
         renderMasterGamesList();
         bindMasterGameListEvents();
       };
       $('#mgDetailDelete').onclick = async () => {
         if (!confirm('Delete "' + g.name + '"?')) return;
+        const btn = $('#mgDetailDelete');
+        btn.disabled = true; btn.innerHTML = 'Deleting...';
         await db.doc(`${userPath()}/masterGames/${g._id}`).delete();
         await loadAllData();
         overlay.remove();
@@ -980,9 +1044,9 @@
           </div>
         </div>
         <div class="tabs">
-          <button class="tab tab-green ${state.companyTab==='billing'?'active':''}" data-tab="billing">💰 Billing</button>
-          <button class="tab tab-cyan ${state.companyTab==='games'?'active':''}" data-tab="games">🎮 Games & Rates</button>
-          <button class="tab tab-purple ${state.companyTab==='settings'?'active':''}" data-tab="settings">⚙️ Settings</button>
+          <button class="tab tab-green ${state.companyTab==='billing'?'active':''}" data-tab="billing"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg> Billing</button>
+          <button class="tab tab-cyan ${state.companyTab==='games'?'active':''}" data-tab="games"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="16" cy="11" r="0.5" fill="currentColor"/><circle cx="18" cy="13" r="0.5" fill="currentColor"/></svg> Games</button>
+          <button class="tab tab-purple ${state.companyTab==='settings'?'active':''}" data-tab="settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
         </div>
         <div id="tabContent">
           ${state.companyTab === 'billing' ? renderBilling(c) : ''}
@@ -1032,7 +1096,10 @@
           ${items.map((item, idx) => renderBillItem(item, idx, assignedGames, usernames)).join('')}
         </div>
 
-        <button class="btn btn-outline-cyan btn-full" id="addBillItem" style="margin-bottom:18px">➕ Add Game to Bill</button>
+        <button class="btn btn-full" id="addBillItem" style="margin-bottom:18px;background:linear-gradient(135deg,rgba(6,182,212,0.2),rgba(124,58,237,0.2));border:1px solid var(--cyan);color:var(--cyan);font-weight:700;padding:12px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add Game to Bill
+        </button>
 
         ${items.length > 0 ? `
           <div class="card totals-card" style="margin-bottom:14px">
@@ -1066,8 +1133,9 @@
               ` : ''}
             </div>
             <div style="display:flex;gap:8px;margin-top:14px">
-              <button class="btn btn-cyan" id="copyBill">📋 Copy Bill</button>
-              <button class="btn btn-green" id="saveBill">💾 Save Bill</button>
+              <button class="btn btn-cyan" id="copyBill">📋 Copy</button>
+              <button class="btn btn-green" id="saveBill">💾 Save</button>
+              <button class="btn btn-red" id="clearBill" style="margin-left:auto">🗑️ Clear</button>
             </div>
           </div>
         ` : ''}
@@ -1108,19 +1176,24 @@
         <div class="bill-grid">
           <div>
             <span class="label">Game</span>
-            <select class="input bill-game-select" data-idx="${idx}">
-              <option value="">Select game</option>
-              ${gameOptions}
-            </select>
+            <div style="position:relative" class="bill-game-wrap" data-idx="${idx}">
+              <input class="input bill-game-search" data-idx="${idx}" placeholder="Search game..." value="${esc(item.gameName)}" autocomplete="off" />
+              <div class="bill-game-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bgCard);border:1px solid var(--border);border-radius:8px;z-index:51;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+                ${assignedGames.map(g => `<div class="dropdown-item bill-game-option" data-gameid="${g._id}" data-gamename="${esc(g.gameName)}" data-rate="${g.rate||0}" data-idx="${idx}">${esc(g.gameName)} <span style="font-size:11px;color:var(--textMuted)">${g.rate||0}%</span></div>`).join('')}
+              </div>
+            </div>
           </div>
           <div>
             <span class="label">Username</span>
-            <div style="position:relative" class="bill-user-wrap" data-idx="${idx}">
-              <input class="input bill-user-search" data-idx="${idx}" placeholder="Search / select user..." value="${esc(item.username)}" autocomplete="off" />
-              <div class="bill-user-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bgCard);border:1px solid var(--border);border-radius:8px;z-index:50;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
-                <div class="dropdown-item" data-user="" style="color:var(--textMuted);font-style:italic">No Username</div>
-                ${sorted.map(u => `<div class="dropdown-item bill-user-option" data-user="${esc(u.username)}" data-idx="${idx}">${esc(u.username)}${u.level?' <span style=\\"font-size:11px;color:var(--textMuted)\\">['+esc(u.level)+']</span>':''}${state.recentUsernames.includes(u.username)?' <span style=\\"color:var(--orange)\\">★</span>':''}</div>`).join('')}
+            <div style="display:flex;gap:4px">
+              <div style="position:relative;flex:1" class="bill-user-wrap" data-idx="${idx}">
+                <input class="input bill-user-search" data-idx="${idx}" placeholder="Search user..." value="${esc(item.username)}" autocomplete="off" style="padding-right:8px" />
+                <div class="bill-user-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bgCard);border:1px solid var(--border);border-radius:8px;z-index:50;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+                  <div class="dropdown-item" data-user="" style="color:var(--textMuted);font-style:italic">No Username</div>
+                  ${sorted.map(u => `<div class="dropdown-item bill-user-option" data-user="${esc(u.username)}" data-idx="${idx}">${esc(u.username)}${u.level?' <span style=\\"font-size:11px;color:var(--textMuted)\\">['+esc(u.level)+']</span>':''}${state.recentUsernames.includes(u.username)?' <span style=\\"color:var(--orange)\\">★</span>':''}</div>`).join('')}
+                </div>
               </div>
+              <button class="btn btn-ghost btn-sm bill-quick-add-user" data-idx="${idx}" data-gameid="${item.gameId}" title="Quick add username" style="padding:6px;border:1px solid var(--border);border-radius:8px;font-size:16px;line-height:1">+</button>
             </div>
           </div>
           <div>
@@ -1170,19 +1243,34 @@
         btn.onclick = () => { state.billItems.splice(parseInt(btn.dataset.idx), 1); render(); };
       });
 
-      $$('.bill-game-select').forEach(sel => {
-        sel.onchange = () => {
-          const idx = parseInt(sel.dataset.idx);
-          const gameId = sel.value;
-          state.billItems[idx].gameId = gameId;
-          state.billItems[idx].username = '';
-          const ag = (c.assignedGames || []).find(g => g._id === gameId);
-          if (ag) {
-            state.billItems[idx].gameName = ag.gameName;
-            state.billItems[idx].rate = ag.rate || 0;
-          }
-          render();
+      // Searchable game dropdowns in billing
+      $$('.bill-game-search').forEach(inp => {
+        const idx = parseInt(inp.dataset.idx);
+        const dropdown = $(`.bill-game-dropdown[data-idx="${idx}"]`);
+        if (!dropdown) return;
+        inp.onfocus = () => { dropdown.classList.remove('hidden'); };
+        inp.oninput = () => {
+          dropdown.classList.remove('hidden');
+          const q = inp.value.toLowerCase();
+          dropdown.querySelectorAll('.dropdown-item').forEach(opt => {
+            opt.style.display = opt.dataset.gamename.toLowerCase().includes(q) ? '' : 'none';
+          });
         };
+        dropdown.querySelectorAll('.dropdown-item').forEach(opt => {
+          opt.onclick = () => {
+            state.billItems[idx].gameId = opt.dataset.gameid;
+            state.billItems[idx].gameName = opt.dataset.gamename;
+            state.billItems[idx].rate = parseFloat(opt.dataset.rate) || 0;
+            state.billItems[idx].username = '';
+            dropdown.classList.add('hidden');
+            render();
+          };
+        });
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.bill-game-wrap')) {
+          $$('.bill-game-dropdown').forEach(d => d.classList.add('hidden'));
+        }
       });
 
       // Searchable username dropdowns in billing
@@ -1223,23 +1311,52 @@
         }
       });
 
+      // Quick add username from billing
+      $$('.bill-quick-add-user').forEach(btn => {
+        btn.onclick = () => {
+          const idx = parseInt(btn.dataset.idx);
+          const item = state.billItems[idx];
+          const ag = (c.assignedGames||[]).find(g => g._id === item.gameId);
+          const gameName = ag ? ag.gameName : '';
+          if (!gameName) { alert('Select a game first'); return; }
+          const username = prompt('Enter new username:');
+          if (!username || !username.trim()) return;
+          const levels = ['Agent','Master','Distributor','Sub-Distributor','Store','Player'];
+          const level = prompt('Select level (type one):\\n' + levels.join(', '));
+          if (level && !levels.includes(level)) { alert('Invalid level. Use: ' + levels.join(', ')); return; }
+          db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: username.trim(), level: level||'' }).then(async () => {
+            state.billItems[idx].username = username.trim();
+            await loadAllData();
+            render();
+          });
+        };
+      });
+
       $$('.bill-value-input').forEach(inp => {
         inp.oninput = () => {
           const idx = parseInt(inp.dataset.idx);
           state.billItems[idx].value = inp.value;
-          // Update result display without full re-render
           const item = state.billItems[idx];
           const calc = calcLine(item);
           const card = inp.closest('.bill-item');
           let result = card.querySelector('.bill-result');
           if (inp.value) {
-            if (!result) { render(); return; }
-            result.innerHTML = `<span class="pts"><strong>Pts:</strong> ${fmtPts(calc.points)}</span>
+            const html = `<span class="pts"><strong>Pts:</strong> ${fmtPts(calc.points)}</span>
               <span class="amt"><strong>$:</strong> ${fmtDol(calc.dollars)}</span>
               <span class="rate">Rate: ${item.rate}%</span>`;
+            if (!result) {
+              result = document.createElement('div');
+              result.className = 'bill-result';
+              card.querySelector('.bill-grid').insertAdjacentElement('afterend', result);
+            }
+            result.innerHTML = html;
+          } else if (result) {
+            result.remove();
           }
-          // Update totals
-          updateTotals();
+          // Live update totals
+          let tp=0,td=0; state.billItems.forEach(it=>{const cl=calcLine(it);tp+=cl.points;td+=cl.dollars;});
+          const tpEl = card.closest('#tabContent')?.querySelector('.totals-card');
+          // Don't re-render, just update state for when user scrolls to totals
         };
       });
 
@@ -1276,6 +1393,17 @@
           await loadAllData();
           $('#billSavedMsg').classList.remove('hidden');
           setTimeout(() => { try { $('#billSavedMsg')?.classList.add('hidden'); } catch(e){} }, 3000);
+        };
+      }
+
+      if ($('#clearBill')) {
+        $('#clearBill').onclick = () => {
+          if (state.billItems.length === 0) return;
+          if (!confirm('Clear all bill items?')) return;
+          state.billItems = [];
+          state.paymentStatus = 'received';
+          state.partialAmount = '';
+          render();
         };
       }
     }
@@ -1361,7 +1489,7 @@
         </div>
         <div id="assignGameForm" class="hidden" style="margin-bottom:14px">
           <div class="card" style="padding:14px;border-color:rgba(124,58,237,0.25)">
-            <h4 style="font-family:'Orbitron',monospace;font-size:12px;color:var(--purpleLight);margin-bottom:10px">ASSIGN GAMES WITH RATE</h4>
+            <h4 style="font-family:'Orbitron',monospace;font-size:12px;color:var(--purpleLight);margin-bottom:10px">ASSIGN GAMES WITH RATE <span id="assignGameCount" style="font-size:11px;color:var(--cyan);font-family:'Rajdhani',sans-serif">(0 selected)</span></h4>
             <span class="label" style="margin-bottom:6px">Select Games (click to toggle)</span>
             <div class="search-wrap" style="margin-bottom:8px">
               <span class="search-icon">🔍</span>
@@ -1489,6 +1617,7 @@
               tag.classList.add('selected');
               tag.textContent = '✓ ' + name;
             }
+            if ($('#assignGameCount')) $('#assignGameCount').textContent = '(' + selectedGames.length + ' selected)';
           };
         });
         $('#confirmAssign').onclick = async () => {
@@ -1652,7 +1781,10 @@
           </button>
         </div>
         <div class="card" style="margin-bottom:14px">
-          <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:10px">BILL HISTORY</h4>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <h4 style="font-family:'Orbitron',monospace;font-size:13px">BILL HISTORY</h4>
+            <button class="btn btn-ghost btn-sm" id="clearBillHistory" style="color:var(--red);font-size:11px">Clear All</button>
+          </div>
           ${compBills.length===0?'<div style="padding:20px;text-align:center;color:var(--textMuted)">No bills recorded yet</div>':''}
           <div style="max-height:350px;overflow-y:auto">
             ${compBills.map(b => `<div class="bill-history-item">
@@ -1716,21 +1848,18 @@
       };
 
       // Download report
-      $('#downloadReport').onclick = () => {
-        const compBills = state.bills.filter(b => b.companyId === c._id);
-        let csv = 'Date,Game,Username,Points,Amount($),Payment Status,Amount Received,Balance Due\n';
-        compBills.forEach(bill => {
-          (bill.items || []).forEach(item => {
-            csv += `"${new Date(bill.date).toLocaleString()}","${item.gameName||''}","${item.username||''}",${(item.points||0).toFixed(2)},${(item.dollars||0).toFixed(2)},"${bill.paymentStatus}",${bill.partialAmount||0},${bill.balanceDue||0}\n`;
-          });
-        });
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${c.name}_report_${new Date().toISOString().slice(0,10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      };
+      $('#downloadReport').onclick = () => { showReportDatePicker('company', c._id); };
+
+      // Clear bill history
+      if ($('#clearBillHistory')) {
+        $('#clearBillHistory').onclick = async () => {
+          const compBills = state.bills.filter(b => b.companyId === c._id);
+          if (compBills.length === 0) return;
+          if (!confirm('Delete all ' + compBills.length + ' bills for ' + c.name + '? This cannot be undone.')) return;
+          for (const bill of compBills) { await db.doc(`${userPath()}/bills/${bill._id}`).delete(); }
+          await loadAllData(); render();
+        };
+      }
 
       // Delete company
       $('#deleteCompanyBtn').onclick = async () => {
