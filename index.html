@@ -1155,14 +1155,12 @@
       return `<div class="page fade-in">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
           <button class="btn btn-ghost btn-sm" id="backBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg></button>
-          <div>
-            <h2 style="font-family:'Orbitron',monospace;font-size:18px;color:var(--purpleLight)">${esc(c.name)}</h2>
-            <span class="badge ${isActive ? 'badge-green' : 'badge-red'}">${isActive ? 'Active' : 'Inactive'}</span>
-          </div>
+          <h2 style="font-family:'Orbitron',monospace;font-size:18px;color:var(--purpleLight);flex:1">${esc(c.name)}</h2>
+          <span class="badge ${isActive ? 'badge-green' : 'badge-red'}">${isActive ? 'Active' : 'Inactive'}</span>
         </div>
         <div class="tabs">
           <button class="tab tab-green ${state.companyTab==='billing'?'active':''}" data-tab="billing"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg> Billing</button>
-          <button class="tab tab-cyan ${state.companyTab==='games'?'active':''}" data-tab="games"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="16" cy="11" r="0.5" fill="currentColor"/><circle cx="18" cy="13" r="0.5" fill="currentColor"/></svg> Games Config</button>
+          <button class="tab tab-cyan ${state.companyTab==='games'?'active':''}" data-tab="games"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="16" cy="11" r="0.5" fill="currentColor"/><circle cx="18" cy="13" r="0.5" fill="currentColor"/></svg> Games Config</button>
           <button class="tab tab-purple ${state.companyTab==='settings'?'active':''}" data-tab="settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
         </div>
         <div id="tabContent">
@@ -1202,13 +1200,16 @@
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
           <span class="label" style="margin:0;font-size:12px">Default Mode</span>
-          <div id="convToggle" style="display:inline-flex;align-items:center;gap:0;cursor:pointer;user-select:none">
-            <div style="padding:6px 12px;border-radius:6px 0 0 6px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;
+          <div id="convToggle" style="display:inline-flex;align-items:stretch;gap:0;cursor:pointer;user-select:none">
+            <div style="padding:6px 12px;border-radius:6px 0 0 6px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;display:flex;align-items:center;
               background:${mode==='pts2dollar'?'var(--cyan)':'var(--bgInput)'};color:${mode==='pts2dollar'?'#000':'var(--textMuted)'};
-              border:1px solid ${mode==='pts2dollar'?'var(--cyan)':'var(--border)'};transition:all 0.2s">PTS→$</div>
-            <div style="padding:6px 12px;border-radius:0 6px 6px 0;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;
+              border:1px solid ${mode==='pts2dollar'?'var(--cyan)':'var(--border)'};transition:all 0.2s">PTS</div>
+            <div style="padding:4px 6px;display:flex;align-items:center;justify-content:center;background:rgba(15,12,28,0.6);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purpleLight)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16l-4-4 4-4"/><path d="M17 8l4 4-4 4"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+            </div>
+            <div style="padding:6px 12px;border-radius:0 6px 6px 0;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;display:flex;align-items:center;
               background:${mode==='dollar2pts'?'var(--green)':'var(--bgInput)'};color:${mode==='dollar2pts'?'#000':'var(--textMuted)'};
-              border:1px solid ${mode==='dollar2pts'?'var(--green)':'var(--border)'};border-left:0;transition:all 0.2s">$→PTS</div>
+              border:1px solid ${mode==='dollar2pts'?'var(--green)':'var(--border)'};transition:all 0.2s">$</div>
           </div>
         </div>
 
@@ -1222,7 +1223,7 @@
         </button>
 
         <div class="card totals-card" style="margin-bottom:14px">
-          <div style="font-family:'Orbitron',monospace;font-size:12px;color:var(--textMuted);margin-bottom:10px">LIVE BILL</div>
+          <div style="font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:var(--purpleLight);margin-bottom:12px;letter-spacing:1px">LIVE BILL</div>
           <div style="display:flex;gap:24px;margin-bottom:14px">
             <div style="flex:1">
               <div style="font-size:11px;color:var(--textMuted);text-transform:uppercase">Points</div>
@@ -1723,15 +1724,22 @@
             </div>
             <div style="flex:1.5;min-width:100px">
               <span class="label">Level</span>
-              <select class="input" id="unAddLevel">
-                <option value="">Select level</option>
-                <option value="Agent">Agent</option>
-                <option value="Master">Master</option>
-                <option value="Distributor">Distributor</option>
-                <option value="Sub-Distributor">Sub-Distributor</option>
-                <option value="Store">Store</option>
-                <option value="Player">Player</option>
-              </select>
+              <div style="position:relative" id="unLevelWrap">
+                <div class="input" id="unLevelTrigger" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between">
+                  <span id="unLevelText" style="color:var(--textMuted)">Select level</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--textMuted)" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
+                </div>
+                <input type="hidden" id="unAddLevel" value="" />
+                <div id="unLevelDropdown" class="hidden" style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:rgba(16,13,30,0.97);border:1px solid var(--glassBorder);border-radius:10px;z-index:200;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,0.6)">
+                  <div class="dropdown-item un-level-opt" data-val="" style="color:var(--textMuted);font-style:italic">None</div>
+                  <div class="dropdown-item un-level-opt" data-val="Agent">Agent</div>
+                  <div class="dropdown-item un-level-opt" data-val="Master">Master</div>
+                  <div class="dropdown-item un-level-opt" data-val="Distributor">Distributor</div>
+                  <div class="dropdown-item un-level-opt" data-val="Sub-Distributor">Sub-Distributor</div>
+                  <div class="dropdown-item un-level-opt" data-val="Store">Store</div>
+                  <div class="dropdown-item un-level-opt" data-val="Player">Player</div>
+                </div>
+              </div>
             </div>
             <button class="btn btn-green" id="unAddBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Add</button>
           </div>
@@ -1851,6 +1859,26 @@
         };
         if ($('#unGameFilter')) $('#unGameFilter').onchange = filterAndSearch;
         if ($('#unSearch')) $('#unSearch').oninput = filterAndSearch;
+
+        // Custom level dropdown
+        if ($('#unLevelTrigger')) {
+          $('#unLevelTrigger').onclick = (e) => {
+            e.stopPropagation();
+            $('#unLevelDropdown').classList.toggle('hidden');
+          };
+          $$('.un-level-opt').forEach(opt => {
+            opt.onclick = () => {
+              const val = opt.dataset.val;
+              $('#unAddLevel').value = val;
+              $('#unLevelText').textContent = val || 'Select level';
+              $('#unLevelText').style.color = val ? 'var(--textPrimary)' : 'var(--textMuted)';
+              $('#unLevelDropdown').classList.add('hidden');
+            };
+          });
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('#unLevelWrap')) $('#unLevelDropdown')?.classList.add('hidden');
+          });
+        }
 
         // Multi-game tag selection for adding usernames
         let selectedUnGames = [];
