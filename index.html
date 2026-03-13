@@ -2117,11 +2117,11 @@
           );
         });
       `;
-      // Register SW from blob - note: blob SWs have limited scope
+      // Register SW from blob
       try {
         const swBlob = new Blob([swCode], { type: 'application/javascript' });
         const swUrl = URL.createObjectURL(swBlob);
-        await navigator.serviceWorker.register(swUrl);
+        navigator.serviceWorker.register(swUrl).catch(e => console.log('SW:', e.message));
       } catch(e) {
         console.log('SW registration:', e.message);
       }
