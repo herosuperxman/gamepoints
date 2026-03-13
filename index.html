@@ -1203,10 +1203,10 @@
           <div id="convToggle" style="display:inline-flex;align-items:center;gap:0;cursor:pointer;user-select:none">
             <div style="padding:6px 12px;border-radius:6px 0 0 6px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;line-height:1;
               background:${mode==='pts2dollar'?'var(--cyan)':'var(--bgInput)'};color:${mode==='pts2dollar'?'#000':'var(--textMuted)'};
-              border:1px solid ${mode==='pts2dollar'?'var(--cyan)':'var(--border)'};transition:all 0.2s">PTS<span style="font-size:13px;vertical-align:middle;margin:0 1px">⇄</span>$</div>
+              border:1px solid ${mode==='pts2dollar'?'var(--cyan)':'var(--border)'};transition:all 0.2s">PTS<span style="font-size:13px;vertical-align:middle;margin:0 1px">→</span>$</div>
             <div style="padding:6px 12px;border-radius:0 6px 6px 0;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;line-height:1;
               background:${mode==='dollar2pts'?'var(--green)':'var(--bgInput)'};color:${mode==='dollar2pts'?'#000':'var(--textMuted)'};
-              border:1px solid ${mode==='dollar2pts'?'var(--green)':'var(--border)'};border-left:0;transition:all 0.2s">$<span style="font-size:13px;vertical-align:middle;margin:0 1px">⇄</span>PTS</div>
+              border:1px solid ${mode==='dollar2pts'?'var(--green)':'var(--border)'};border-left:0;transition:all 0.2s">$<span style="font-size:13px;vertical-align:middle;margin:0 1px">→</span>PTS</div>
           </div>
         </div>
 
@@ -1454,7 +1454,7 @@
           const result = await new Promise(resolve => {
             const ov = document.createElement('div');
             ov.className = 'modal-overlay';
-            ov.innerHTML = `<div class="modal fade-in" style="max-width:320px;padding:22px">
+            ov.innerHTML = `<div class="modal fade-in" style="max-width:320px;padding:22px;overflow:visible">
               <div style="font-family:'Orbitron',monospace;font-size:13px;color:var(--purpleLight);margin-bottom:16px;text-align:center">ADD USERNAME</div>
               <div style="margin-bottom:12px">
                 <span class="label">Username</span>
@@ -1467,7 +1467,7 @@
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--textMuted)" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
                 </div>
                 <input type="hidden" id="_qaLevel" value="" />
-                <div id="_qaLevelDrop" class="hidden" style="position:absolute;bottom:calc(100% + 4px);left:0;right:0;background:rgba(16,13,30,0.97);border:1px solid var(--glassBorder);border-radius:10px;z-index:999;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,0.6)">
+                <div id="_qaLevelDrop" class="hidden" style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:rgba(16,13,30,0.97);border:1px solid var(--glassBorder);border-radius:10px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,0.6)">
                   <div class="dropdown-item _qa-lv-opt" data-val="" style="color:var(--textMuted);font-style:italic">None</div>
                   ${levels.map(l => '<div class="dropdown-item _qa-lv-opt" data-val="'+l+'">'+l+'</div>').join('')}
                 </div>
