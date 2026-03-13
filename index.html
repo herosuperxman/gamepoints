@@ -569,6 +569,8 @@
         history.pushState({ view: state.view, companyId: state.selectedCompanyId }, '');
       }
       skipPushState = false;
+      // Update clock in utility bar
+      if (typeof updateUtilClock === 'function') updateUtilClock();
     }
 
     window.addEventListener('popstate', (e) => {
@@ -715,13 +717,28 @@
           </div>
         </div>
       </header>
-      <div class="utility-bar" id="utilityBar" style="justify-content:flex-end">
+      <div class="utility-bar" id="utilityBar" style="justify-content:space-between">
+        <span id="utilDateTime" style="font-size:11px;color:var(--textMuted);font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.5px"></span>
         <button class="util-btn" id="btnSync">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
           <span class="util-label">Sync</span>
         </button>
       </div>`;
     }
+
+    // Update utility bar clock
+    function updateUtilClock() {
+      const el = document.getElementById('utilDateTime');
+      if (!el) return;
+      const now = new Date();
+      const y = now.getUTCFullYear();
+      const m = String(now.getUTCMonth()+1).padStart(2,'0');
+      const d = String(now.getUTCDate()).padStart(2,'0');
+      const h = String(now.getUTCHours()).padStart(2,'0');
+      const min = String(now.getUTCMinutes()).padStart(2,'0');
+      el.textContent = y+'/'+m+'/'+d+' | '+h+':'+min+' UTC';
+    }
+    setInterval(updateUtilClock, 10000);
 
     function bindHeader() {
       $('#headerLogo').onclick = () => { state.view = 'companies'; state.selectedCompanyId = null; render(); };
@@ -1209,11 +1226,11 @@
           <div style="display:flex;gap:24px;margin-bottom:14px">
             <div style="flex:1">
               <div style="font-size:11px;color:var(--textMuted);text-transform:uppercase">Points</div>
-              <div id="liveTotalPts" style="font-size:20px;font-weight:700;color:var(--cyan);font-family:'Orbitron',monospace">${fmtPts(totalPts)}</div>
+              <div id="liveTotalPts" style="font-size:20px;font-weight:700;color:#22d3ee;font-family:'Orbitron',monospace">${fmtPts(totalPts)}</div>
             </div>
             <div style="flex:1">
               <div style="font-size:11px;color:var(--textMuted);text-transform:uppercase">Amount</div>
-              <div id="liveTotalDol" style="font-size:20px;font-weight:700;color:var(--green);font-family:'Orbitron',monospace">$${fmtDol(totalDollars)}</div>
+              <div id="liveTotalDol" style="font-size:20px;font-weight:700;color:#34d399;font-family:'Orbitron',monospace">$${fmtDol(totalDollars)}</div>
             </div>
           </div>
           <div style="border-top:1px solid var(--border);padding-top:12px">
@@ -1434,37 +1451,45 @@
           const ag = (c.assignedGames||[]).find(g => g._id === item.gameId);
           const gameName = ag ? ag.gameName : '';
           if (!gameName) { alert('Select a game first'); return; }
-          const username = prompt('Enter new username:');
-          if (!username || !username.trim()) return;
-          // Show level selection modal
+          // Styled username + level modal
           const levels = ['Agent','Master','Distributor','Sub-Distributor','Store','Player'];
-          const level = await new Promise(resolve => {
+          const result = await new Promise(resolve => {
             const ov = document.createElement('div');
             ov.className = 'modal-overlay';
-            ov.innerHTML = `<div class="modal fade-in" style="max-width:280px;padding:20px;text-align:center">
-              <div style="font-family:'Orbitron',monospace;font-size:13px;color:var(--purpleLight);margin-bottom:14px">SELECT LEVEL</div>
-              <div id="_qLvl" style="display:flex;flex-direction:column;gap:6px"></div>
+            ov.innerHTML = `<div class="modal fade-in" style="max-width:320px;padding:22px">
+              <div style="font-family:'Orbitron',monospace;font-size:13px;color:var(--purpleLight);margin-bottom:16px;text-align:center">ADD USERNAME</div>
+              <div style="margin-bottom:12px">
+                <span class="label">Username</span>
+                <input class="input" id="_qaName" placeholder="Enter username" autofocus />
+              </div>
+              <div style="margin-bottom:16px">
+                <span class="label">Level</span>
+                <select class="input" id="_qaLevel">
+                  <option value="">Select level</option>
+                  ${levels.map(l => '<option value="'+l+'">'+l+'</option>').join('')}
+                </select>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-green" id="_qaConfirm" style="flex:1;justify-content:center">Add</button>
+                <button class="btn btn-ghost" id="_qaCancel" style="flex:1;justify-content:center">Cancel</button>
+              </div>
             </div>`;
             document.body.appendChild(ov);
-            const cont = ov.querySelector('#_qLvl');
-            levels.forEach(lv => {
-              const b = document.createElement('button');
-              b.className = 'btn btn-outline-purple';
-              b.style.cssText = 'width:100%;justify-content:center;padding:10px';
-              b.textContent = lv;
-              b.onclick = () => { ov.remove(); resolve(lv); };
-              cont.appendChild(b);
-            });
-            const skip = document.createElement('button');
-            skip.className = 'btn btn-ghost';
-            skip.style.cssText = 'width:100%;justify-content:center;margin-top:4px';
-            skip.textContent = 'Skip';
-            skip.onclick = () => { ov.remove(); resolve(''); };
-            cont.appendChild(skip);
-            ov.onclick = (e) => { if(e.target===ov){ov.remove();resolve('');} };
+            ov.querySelector('#_qaConfirm').onclick = () => {
+              const name = ov.querySelector('#_qaName').value.trim();
+              const level = ov.querySelector('#_qaLevel').value;
+              if (!name) { ov.querySelector('#_qaName').focus(); return; }
+              ov.remove();
+              resolve({ name, level });
+            };
+            ov.querySelector('#_qaCancel').onclick = () => { ov.remove(); resolve(null); };
+            ov.querySelector('#_qaName').onkeydown = (e) => { if (e.key==='Enter') ov.querySelector('#_qaConfirm').click(); };
+            ov.onclick = (e) => { if(e.target===ov){ov.remove();resolve(null);} };
+            setTimeout(() => ov.querySelector('#_qaName')?.focus(), 100);
           });
-          await db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: username.trim(), level: level||'' });
-          state.billItems[idx].username = username.trim();
+          if (!result) return;
+          await db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: result.name, level: result.level||'' });
+          state.billItems[idx].username = result.name;
           await loadAllData();
           render();
         };
@@ -1510,7 +1535,15 @@
       });
 
       if ($('#partialAmountInput')) {
-        $('#partialAmountInput').oninput = (e) => { state.partialAmount = e.target.value; };
+        $('#partialAmountInput').oninput = (e) => {
+          state.partialAmount = e.target.value;
+          // Live update balance due
+          let td = 0;
+          state.billItems.forEach(it => { td += calcLine(it).dollars; });
+          const recv = parseFloat(state.partialAmount) || 0;
+          const balEl = document.getElementById('liveBalanceDue');
+          if (balEl) balEl.textContent = '$' + fmtDol(td - recv);
+        };
       }
 
       if ($('#copyBill')) {
