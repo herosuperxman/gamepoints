@@ -217,12 +217,12 @@
     .dropdown-trigger .placeholder { color: var(--textMuted); }
     .dropdown-menu {
       position:absolute; top:calc(100% + 4px); left:0; right:0;
-      background:var(--bgCard); border:1px solid var(--border); border-radius:8px;
-      z-index:50; max-height:220px; overflow-y:auto;
-      box-shadow:0 8px 32px rgba(0,0,0,0.4);
+      background:rgba(16,13,30,0.97); border:1px solid var(--glassBorder); border-radius:10px;
+      z-index:200; max-height:220px; overflow-y:auto;
+      box-shadow:0 12px 40px rgba(0,0,0,0.6);
     }
     .dropdown-item {
-      padding:9px 12px; cursor:pointer; display:flex; align-items:center;
+      padding:10px 12px; cursor:pointer; display:flex; align-items:center;
       justify-content:space-between; font-size:13px; transition:background 0.15s;
       color: var(--textPrimary);
     }
@@ -252,14 +252,15 @@
     .search-icon {
       position:absolute; left:10px; top:50%; transform:translateY(-50%);
       color:var(--textMuted); font-size:14px; pointer-events:none;
+      z-index:2; display:flex; align-items:center;
     }
 
     /* COMPANY LIST */
     .company-item {
-      display:flex; align-items:center; padding:14px 18px; background:var(--glass);
+      display:flex; align-items:center; padding:14px 18px; background:rgba(18,16,32,0.7);
       border:1px solid var(--glassBorder); border-radius:14px; margin-bottom:10px;
       cursor:pointer; transition: all 0.25s;
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     }
     .company-item:hover {
       border-color: var(--purple); background: var(--bgHover);
@@ -334,7 +335,7 @@
 
     /* ASSIGNED GAME ROW */
     .assigned-row {
-      display:flex; align-items:center; padding:12px 14px; background:var(--glass);
+      display:flex; align-items:center; padding:12px 14px; background:rgba(18,16,32,0.85);
       border:1px solid var(--glassBorder); border-radius:12px; margin-bottom:6px;
       transition: all 0.2s;
     }
@@ -342,13 +343,13 @@
 
     /* USERNAME ROW */
     .username-row {
-      display:flex; align-items:center; padding:10px 14px; background:var(--glass);
+      display:flex; align-items:center; padding:10px 14px; background:rgba(18,16,32,0.85);
       border:1px solid var(--glassBorder); border-radius:10px; margin-bottom:6px;
     }
 
     /* BILL HISTORY ITEM */
     .bill-history-item {
-      padding:10px 14px; border-bottom:1px solid var(--border);
+      padding:10px 14px; border-bottom:1px solid rgba(60,50,100,0.3);
       display:flex; align-items:center; gap:12px;
     }
 
@@ -368,7 +369,8 @@
     .payment-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 
     /* PAGE */
-    .page { max-width: 750px; margin: 0 auto; padding: 24px 16px; }
+    .page { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+    @media (min-width: 1024px) { .page { max-width: 960px; padding: 28px 32px; } }
 
     /* LOGIN */
     .login-page {
@@ -411,10 +413,11 @@
 
     /* ACCOUNT DROPDOWN */
     .account-trigger {
-      display:flex; align-items:center; gap:7px; cursor:pointer; padding:4px 8px;
-      border-radius:8px; border:1px solid var(--border); transition:background 0.2s;
+      display:flex; align-items:center; gap:8px; cursor:pointer; padding:5px 10px;
+      border-radius:10px; border:1px solid var(--glassBorder); transition:all 0.2s;
+      background: rgba(20,16,40,0.4);
     }
-    .account-trigger:hover { background:var(--bgHover); }
+    .account-trigger:hover { background:var(--glassHover); border-color:rgba(120,100,200,0.3); }
     .account-avatar { width:26px; height:26px; border-radius:50%; }
     .account-name {
       font-size:12px; color:var(--textSecondary); max-width:100px;
@@ -467,8 +470,17 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
     db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
-    // Handle redirect result for iOS Safari
-    auth.getRedirectResult().catch(() => {});
+    // Handle redirect result for iOS Safari / PWA
+    auth.getRedirectResult().then(result => {
+      if (result && result.user) {
+        // Redirect sign-in succeeded - onAuthStateChanged will handle the rest
+        console.log('Redirect sign-in success');
+      }
+    }).catch(err => {
+      console.log('Redirect result:', err.code || err.message);
+    });
+    // Set LOCAL persistence for PWA / Safari contexts
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
 
     // ============================================================
     // STATE
@@ -619,13 +631,20 @@
         btn.disabled = true;
         try {
           const provider = new firebase.auth.GoogleAuthProvider();
-          // Use redirect on iOS Safari as popup is blocked
-          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-          if (isSafari || isIOS) {
-            await auth.signInWithRedirect(provider);
-          } else {
+          try {
+            // Try popup first (works on most browsers)
             await auth.signInWithPopup(provider);
+          } catch (popupErr) {
+            // If popup fails (iOS Safari, PWA), try redirect
+            if (popupErr.code === 'auth/operation-not-supported-in-this-environment' || 
+                popupErr.code === 'auth/popup-blocked' ||
+                popupErr.code === 'auth/cancelled-popup-request') {
+              // Set persistence to LOCAL before redirect so session survives
+              await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+              await auth.signInWithRedirect(provider);
+            } else {
+              throw popupErr;
+            }
           }
         } catch (e) {
           const err = $('#loginError');
@@ -655,14 +674,20 @@
           </button>
           <div style="position:relative" id="accountWrap">
             <div class="account-trigger" id="accountTrigger">
-              ${photo}
+              <div style="position:relative;display:inline-flex">
+                ${photo}
+                <span style="position:absolute;bottom:0;right:0;width:8px;height:8px;background:var(--green);border-radius:50%;border:2px solid rgba(16,13,30,0.9)"></span>
+              </div>
               <span class="account-name">${esc((u.displayName || u.email).split(' ')[0])}</span>
-              <span style="font-size:10px;color:var(--textMuted)">▼</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--textMuted)" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
             </div>
             <div class="account-menu hidden" id="accountMenu">
-              <div style="padding:8px 12px;border-bottom:1px solid var(--border);margin-bottom:4px">
-                <div style="font-size:13px;font-weight:600">${esc(u.displayName || '')}</div>
-                <div style="font-size:11px;color:var(--textMuted)">${esc(u.email)}</div>
+              <div style="padding:10px 12px;border-bottom:1px solid var(--glassBorder);margin-bottom:6px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                  <span style="width:6px;height:6px;background:var(--green);border-radius:50%;flex-shrink:0"></span>
+                  <span style="font-size:13px;font-weight:700;color:var(--textPrimary)">${esc(u.displayName || '')}</span>
+                </div>
+                <div style="font-size:11px;color:var(--textMuted);padding-left:12px">${esc(u.email)}</div>
               </div>
               <div class="account-menu-item" id="menuGenReport">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -1174,7 +1199,7 @@
           ${items.map((item, idx) => renderBillItem(item, idx, assignedGames, usernames)).join('')}
         </div>
 
-        <button class="btn btn-full" id="addBillItem" style="margin-bottom:20px;background:linear-gradient(135deg,var(--purple),rgba(6,182,212,0.6));color:#fff;font-weight:700;padding:14px;font-size:14px;letter-spacing:1px;border:none;box-shadow:0 4px 20px rgba(124,58,237,0.3)">
+        <button class="btn btn-full" id="addBillItem" style="position:relative;z-index:1;margin-bottom:20px;background:linear-gradient(135deg,var(--purple),rgba(6,182,212,0.6));color:#fff;font-weight:700;padding:14px;font-size:14px;letter-spacing:1px;border:none;box-shadow:0 4px 20px rgba(124,58,237,0.3)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
           ADD GAME TO BILL
         </button>
@@ -1252,7 +1277,7 @@
             <span class="label">Game</span>
             <div style="position:relative" class="bill-game-wrap" data-idx="${idx}">
               <input class="input bill-game-search" data-idx="${idx}" placeholder="Search game..." value="${esc(item.gameName)}" autocomplete="off" />
-              <div class="bill-game-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bgCard);border:1px solid var(--border);border-radius:8px;z-index:51;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+              <div class="bill-game-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:rgba(16,13,30,0.97);border:1px solid var(--glassBorder);border-radius:10px;z-index:200;max-height:200px;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,0.6)">
                 ${assignedGames.map(g => `<div class="dropdown-item bill-game-option" data-gameid="${g._id}" data-gamename="${esc(g.gameName)}" data-rate="${g.rate||0}" data-idx="${idx}">${esc(g.gameName)} <span style="font-size:11px;color:var(--textMuted)">${g.rate||0}%</span></div>`).join('')}
               </div>
             </div>
@@ -1262,7 +1287,7 @@
             <div style="display:flex;gap:4px">
               <div style="position:relative;flex:1" class="bill-user-wrap" data-idx="${idx}">
                 <input class="input bill-user-search" data-idx="${idx}" placeholder="Search user..." value="${esc(item.username)}" autocomplete="off" style="padding-right:8px" />
-                <div class="bill-user-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bgCard);border:1px solid var(--border);border-radius:8px;z-index:50;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+                <div class="bill-user-dropdown hidden" data-idx="${idx}" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:rgba(16,13,30,0.97);border:1px solid var(--glassBorder);border-radius:10px;z-index:200;max-height:200px;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,0.6)">
                   <div class="dropdown-item" data-user="" style="color:var(--textMuted);font-style:italic">No Username</div>
                   ${sorted.map(u => `<div class="dropdown-item bill-user-option" data-user="${esc(u.username)}" data-idx="${idx}">${esc(u.username)}${u.level?' <span style=\\"font-size:11px;color:var(--textMuted)\\">['+esc(u.level)+']</span>':''}${state.recentUsernames.includes(u.username)?' <span style=\\"color:var(--orange)\\">★</span>':''}</div>`).join('')}
                 </div>
@@ -1403,7 +1428,7 @@
 
       // Quick add username from billing
       $$('.bill-quick-add-user').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = async () => {
           const idx = parseInt(btn.dataset.idx);
           const item = state.billItems[idx];
           const ag = (c.assignedGames||[]).find(g => g._id === item.gameId);
@@ -1411,14 +1436,37 @@
           if (!gameName) { alert('Select a game first'); return; }
           const username = prompt('Enter new username:');
           if (!username || !username.trim()) return;
+          // Show level selection modal
           const levels = ['Agent','Master','Distributor','Sub-Distributor','Store','Player'];
-          const level = prompt('Select level (type one):\\n' + levels.join(', '));
-          if (level && !levels.includes(level)) { alert('Invalid level. Use: ' + levels.join(', ')); return; }
-          db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: username.trim(), level: level||'' }).then(async () => {
-            state.billItems[idx].username = username.trim();
-            await loadAllData();
-            render();
+          const level = await new Promise(resolve => {
+            const ov = document.createElement('div');
+            ov.className = 'modal-overlay';
+            ov.innerHTML = `<div class="modal fade-in" style="max-width:280px;padding:20px;text-align:center">
+              <div style="font-family:'Orbitron',monospace;font-size:13px;color:var(--purpleLight);margin-bottom:14px">SELECT LEVEL</div>
+              <div id="_qLvl" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>`;
+            document.body.appendChild(ov);
+            const cont = ov.querySelector('#_qLvl');
+            levels.forEach(lv => {
+              const b = document.createElement('button');
+              b.className = 'btn btn-outline-purple';
+              b.style.cssText = 'width:100%;justify-content:center;padding:10px';
+              b.textContent = lv;
+              b.onclick = () => { ov.remove(); resolve(lv); };
+              cont.appendChild(b);
+            });
+            const skip = document.createElement('button');
+            skip.className = 'btn btn-ghost';
+            skip.style.cssText = 'width:100%;justify-content:center;margin-top:4px';
+            skip.textContent = 'Skip';
+            skip.onclick = () => { ov.remove(); resolve(''); };
+            cont.appendChild(skip);
+            ov.onclick = (e) => { if(e.target===ov){ov.remove();resolve('');} };
           });
+          await db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: username.trim(), level: level||'' });
+          state.billItems[idx].username = username.trim();
+          await loadAllData();
+          render();
         };
       });
 
@@ -2069,9 +2117,14 @@
           );
         });
       `;
-      const swBlob = new Blob([swCode], { type: 'application/javascript' });
-      const swUrl = URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swUrl, { scope: '/' }).catch(() => {});
+      // Register SW from blob - note: blob SWs have limited scope
+      try {
+        const swBlob = new Blob([swCode], { type: 'application/javascript' });
+        const swUrl = URL.createObjectURL(swBlob);
+        await navigator.serviceWorker.register(swUrl);
+      } catch(e) {
+        console.log('SW registration:', e.message);
+      }
     }
     // Initial render
     render();
