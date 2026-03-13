@@ -161,6 +161,22 @@
     .input::placeholder { color: #9990b8; font-weight: 500; }
     .input-search { padding-left: 34px; }
 
+    /* Date/time inputs - glass themed */
+    .input[type="date"], .input[type="datetime-local"], .input[type="time"] {
+      color-scheme: dark;
+      -webkit-appearance: none;
+    }
+    .input[type="date"]::-webkit-calendar-picker-indicator,
+    .input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.7) sepia(1) hue-rotate(220deg) saturate(3);
+      cursor: pointer;
+      opacity: 0.8;
+    }
+    .input[type="date"]::-webkit-calendar-picker-indicator:hover,
+    .input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
+    }
+
     /* CARD */
     .card {
       background: rgba(18,16,32,0.82); border: 1px solid var(--glassBorder);
@@ -891,11 +907,11 @@
         <div style="display:flex;gap:8px;margin-bottom:14px">
           <div style="flex:1">
             <span class="label" style="font-size:10px">From</span>
-            <input class="input" type="date" id="reportFrom" value="${firstOfMonth}" style="font-size:13px" />
+            <input class="input" type="datetime-local" id="reportFrom" value="${firstOfMonth}T00:00" style="font-size:13px" placeholder="From date & time" />
           </div>
           <div style="flex:1">
             <span class="label" style="font-size:10px">To</span>
-            <input class="input" type="date" id="reportTo" value="${today}" style="font-size:13px" />
+            <input class="input" type="datetime-local" id="reportTo" value="${today}T23:59" style="font-size:13px" placeholder="To date & time" />
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -913,15 +929,15 @@
       overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
       $('#closeReportDate').onclick = () => overlay.remove();
       $('#reportDownloadTx').onclick = () => {
-        const from = new Date($('#reportFrom').value + 'T00:00:00');
-        const to = new Date($('#reportTo').value + 'T23:59:59');
+        const from = new Date($('#reportFrom').value);
+        const to = new Date($('#reportTo').value);
         if (scope === 'all') doFullReport(from, to);
         else doCompanyReport(companyId, from, to);
         overlay.remove();
       };
       $('#reportDownloadPL').onclick = () => {
-        const from = new Date($('#reportFrom').value + 'T00:00:00');
-        const to = new Date($('#reportTo').value + 'T23:59:59');
+        const from = new Date($('#reportFrom').value);
+        const to = new Date($('#reportTo').value);
         doProfitLossReport(scope, companyId, from, to);
         overlay.remove();
       };
@@ -1360,31 +1376,51 @@
           <div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-end;flex-wrap:wrap">
             <div style="flex:1;min-width:100px">
               <span class="label" style="font-size:10px">From</span>
-              <input class="input" type="date" id="billHistFrom" style="font-size:12px;padding:6px 8px" />
+              <input class="input" type="datetime-local" id="billHistFrom" style="font-size:12px;padding:6px 8px" placeholder="From" />
             </div>
             <div style="flex:1;min-width:100px">
               <span class="label" style="font-size:10px">To</span>
-              <input class="input" type="date" id="billHistTo" style="font-size:12px;padding:6px 8px" />
+              <input class="input" type="datetime-local" id="billHistTo" style="font-size:12px;padding:6px 8px" placeholder="To" />
             </div>
             <button class="btn btn-ghost btn-sm" id="billHistFilter" style="font-size:11px">Filter</button>
             <button class="btn btn-ghost btn-sm" id="billHistReset" style="font-size:11px;color:var(--textMuted)">Reset</button>
           </div>
           <div id="billHistList" style="max-height:300px;overflow-y:auto">
             ${companyBills.length===0?'<div style="padding:16px;text-align:center;color:var(--textMuted);font-size:13px">No bills yet</div>':''}
-            ${companyBills.map(b => `<div class="bill-history-item" data-date="${b.date}" data-billid="${b._id}" data-search="${(b.items||[]).map(i=>(i.gameName||'')+(i.username||'')).join(' ').toLowerCase()}">
-              <div style="flex:1">
-                <div style="font-size:12px;color:var(--textMuted)">${new Date(b.date).toLocaleDateString()} ${new Date(b.date).toLocaleTimeString()}</div>
-                <div style="font-size:11px;color:var(--textMuted)">${(b.items||[]).length} items</div>
+            ${companyBills.map(b => {
+              const plItems = (b.items||[]).map(i => {
+                const sellR = getGameRate(c, i.gameName)||0;
+                const costR = getCostRate(i.gameName);
+                const sp = (i.points||0)*(sellR/100);
+                const cp = (i.points||0)*(costR/100);
+                return { ...i, sp, cp, pl: sp-cp };
+              });
+              const totalPL = plItems.reduce((s,i)=>s+i.pl,0);
+              return `<div class="bill-hist-wrap" data-date="${b.date}" data-billid="${b._id}" data-search="${(b.items||[]).map(i=>(i.gameName||'')+(i.username||'')).join(' ').toLowerCase()}">
+              <div class="bill-history-item" style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                <div style="flex:1">
+                  <div style="font-size:12px;color:var(--textSecondary)">${new Date(b.date).toLocaleDateString()} ${new Date(b.date).toLocaleTimeString()}</div>
+                  <div style="font-size:11px;color:var(--textMuted)">${(b.items||[]).length} items · <span style="color:${totalPL>=0?'#34d399':'var(--red)'}">P/L $${totalPL.toFixed(2)}</span></div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-weight:700;color:#34d399;font-family:'Orbitron',monospace;font-size:13px">$${(b.totalDollars||0).toFixed(2)}</div>
+                  <div style="font-size:11px;color:#22d3ee">${(b.totalPoints||0).toFixed(2)} pts</div>
+                </div>
+                <span class="badge ${b.paymentStatus==='received'?'badge-green':b.paymentStatus==='partial'?'badge-orange':'badge-red'}" style="margin:0 4px">
+                  ${b.paymentStatus==='received'?'Paid':b.paymentStatus==='partial'?'Partial':'Due'}
+                </span>
+                <button class="btn btn-ghost btn-sm bill-hist-del" data-billid="${b._id}" style="color:var(--red);padding:3px 5px" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>
               </div>
-              <div style="text-align:right">
-                <div style="font-weight:700;color:#34d399;font-family:'Orbitron',monospace;font-size:13px">$${(b.totalDollars||0).toFixed(2)}</div>
-                <div style="font-size:11px;color:#22d3ee">${(b.totalPoints||0).toFixed(2)} pts</div>
+              <div class="hidden" style="padding:8px 12px;background:rgba(10,8,20,0.5);border-bottom:1px solid rgba(60,50,100,0.3);font-size:12px">
+                ${plItems.map(i => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(60,50,100,0.15)">
+                  <span style="color:var(--textSecondary)">${i.gameName||'-'}</span>
+                  <span style="color:var(--textMuted)">${i.username||'-'}</span>
+                  <span style="color:#22d3ee">${(i.points||0)} pts</span>
+                  <span style="color:#34d399">$${(i.dollars||0).toFixed(2)}</span>
+                  <span style="color:${i.pl>=0?'#34d399':'var(--red)'}">P/L $${i.pl.toFixed(2)}</span>
+                </div>`).join('')}
               </div>
-              <span class="badge ${b.paymentStatus==='received'?'badge-green':b.paymentStatus==='partial'?'badge-orange':'badge-red'}" style="margin:0 4px">
-                ${b.paymentStatus==='received'?'Paid':b.paymentStatus==='partial'?'Partial':'Due'}
-              </span>
-              <button class="btn btn-ghost btn-sm bill-hist-del" data-billid="${b._id}" style="color:var(--red);padding:3px 5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>
-            </div>`).join('')}
+            </div>`;}).join('')}
           </div>
         </div>
       `;
@@ -1743,9 +1779,9 @@
           const q = ($('#billHistSearch')?.value||'').toLowerCase();
           const from = $('#billHistFrom')?.value;
           const to = $('#billHistTo')?.value;
-          const fromD = from ? new Date(from+'T00:00:00') : null;
-          const toD = to ? new Date(to+'T23:59:59') : null;
-          $$('.bill-history-item').forEach(el => {
+          const fromD = from ? new Date(from) : null;
+          const toD = to ? new Date(to) : null;
+          $$('.bill-hist-wrap').forEach(el => {
             const d = new Date(el.dataset.date);
             const matchDate = (!fromD || d>=fromD) && (!toD || d<=toD);
             const matchSearch = !q || (el.dataset.search||'').includes(q);
@@ -1757,7 +1793,7 @@
         if ($('#billHistReset')) {
           $('#billHistReset').onclick = () => {
             $('#billHistFrom').value=''; $('#billHistTo').value=''; $('#billHistSearch').value='';
-            $$('.bill-history-item').forEach(el => el.style.display='');
+            $$('.bill-hist-wrap').forEach(el => el.style.display='');
           };
         }
       }
@@ -1780,7 +1816,7 @@
           try {
             await db.doc(userPath()+'/bills/'+bid).delete();
             state.bills = state.bills.filter(b => b._id !== bid);
-            btn.closest('.bill-history-item').remove();
+            btn.closest('.bill-hist-wrap').remove();
           } catch(e) { alert('Delete failed'); }
         };
       });
@@ -2178,11 +2214,21 @@
           </div>
         </div>
         <div class="card" style="margin-bottom:14px">
-          <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:10px">GENERATE REPORT</h4>
-          <p style="font-size:12px;color:var(--textMuted);margin-bottom:14px">Download detailed Excel (CSV) report with loads, redemptions, payments, and balance.</p>
-          <button class="btn btn-green" id="downloadReport">
+          <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:12px">GENERATE REPORT</h4>
+          <div style="display:flex;gap:16px;margin-bottom:16px;padding:14px;border-radius:10px;background:rgba(15,12,28,0.5);border:1px solid var(--glassBorder)">
+            <div style="flex:1;text-align:center">
+              <div style="font-size:10px;color:var(--textMuted);text-transform:uppercase;margin-bottom:2px">Total Revenue</div>
+              <div id="settingsRevenue" style="font-size:16px;font-weight:700;color:#34d399;font-family:'Orbitron',monospace">$0</div>
+            </div>
+            <div style="width:1px;background:var(--glassBorder)"></div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:10px;color:var(--textMuted);text-transform:uppercase;margin-bottom:2px">Profit / Loss</div>
+              <div id="settingsPL" style="font-size:16px;font-weight:700;font-family:'Orbitron',monospace">$0</div>
+            </div>
+          </div>
+          <button class="btn btn-green btn-full" id="downloadReport" style="justify-content:center">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            Download Report
+            Generate Report
           </button>
         </div>
         <div class="card" style="border-color:rgba(239,68,68,0.25)">
@@ -2199,6 +2245,26 @@
     function bindCompanySettings() {
       const c = state.companies[state.selectedCompanyId];
       if (!c) return;
+
+      // Calculate and display P/L summary
+      const compBills = state.bills.filter(b => b.companyId === c._id);
+      let totalRev = 0, totalPL = 0;
+      for (const bill of compBills) {
+        totalRev += (bill.totalDollars || 0);
+        for (const item of (bill.items||[])) {
+          const sellR = getGameRate(c, item.gameName) || 0;
+          const costR = getCostRate(item.gameName);
+          const sp = (item.points||0) * (sellR/100);
+          const cp = (item.points||0) * (costR/100);
+          totalPL += sp - cp;
+        }
+      }
+      if ($('#settingsRevenue')) $('#settingsRevenue').textContent = '$' + totalRev.toFixed(2);
+      if ($('#settingsPL')) {
+        const plEl = $('#settingsPL');
+        plEl.textContent = (totalPL>=0?'+':'') + '$' + totalPL.toFixed(2);
+        plEl.style.color = totalPL >= 0 ? '#34d399' : 'var(--red)';
+      }
 
       // Edit company name
       $('#editCompanyNameBtn').onclick = () => {
