@@ -852,36 +852,72 @@
       $('#reportDateModal')?.remove();
       const today = new Date().toISOString().slice(0,10);
       const firstOfMonth = today.slice(0,8) + '01';
+      // Calculate quick P/L summary
+      let totalPL = 0;
+      const bills = state.bills;
+      const companies = Object.values(state.companies);
+      for (const comp of companies) {
+        if (scope !== 'all' && comp._id !== companyId) continue;
+        const cb = bills.filter(b => b.companyId === comp._id);
+        for (const bill of cb) {
+          for (const item of (bill.items||[])) {
+            const sellRate = getGameRate(comp, item.gameName);
+            const costR = getCostRate(item.gameName);
+            const pts = item.points || 0;
+            totalPL += pts - (costR ? pts * costR / (sellRate||1) : 0);
+          }
+        }
+      }
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
       overlay.id = 'reportDateModal';
-      overlay.innerHTML = `<div class="modal fade-in" style="max-width:380px">
+      overlay.innerHTML = `<div class="modal fade-in" style="max-width:400px">
         <div class="modal-header">
           <h3 class="modal-title">GENERATE REPORT</h3>
           <button class="btn btn-ghost btn-sm" id="closeReportDate"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
-        <p style="font-size:13px;color:var(--textSecondary);margin-bottom:14px">${scope==='all'?'All companies':'Company'} report within date range</p>
-        <div style="margin-bottom:12px">
-          <span class="label">From Date</span>
-          <input class="input" type="date" id="reportFrom" value="${firstOfMonth}" />
+        <div style="display:flex;gap:12px;margin-bottom:16px;padding:12px;border-radius:10px;background:rgba(15,12,28,0.5);border:1px solid var(--glassBorder)">
+          <div style="flex:1;text-align:center">
+            <div style="font-size:10px;color:var(--textMuted);text-transform:uppercase">Total P/L</div>
+            <div style="font-size:18px;font-weight:700;font-family:'Orbitron',monospace;color:${totalPL>=0?'#34d399':'var(--red)'}">${totalPL>=0?'+':''}${totalPL.toFixed(0)} pts</div>
+          </div>
         </div>
-        <div style="margin-bottom:16px">
-          <span class="label">To Date</span>
-          <input class="input" type="date" id="reportTo" value="${today}" />
+        <p style="font-size:12px;color:var(--textSecondary);margin-bottom:12px">${scope==='all'?'All companies':'Company'} report</p>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <div style="flex:1">
+            <span class="label" style="font-size:10px">From</span>
+            <input class="input" type="date" id="reportFrom" value="${firstOfMonth}" style="font-size:13px" />
+          </div>
+          <div style="flex:1">
+            <span class="label" style="font-size:10px">To</span>
+            <input class="input" type="date" id="reportTo" value="${today}" style="font-size:13px" />
+          </div>
         </div>
-        <button class="btn btn-green btn-full" id="reportDownload">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Report
-        </button>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-green btn-full" id="reportDownloadTx" style="justify-content:center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Transaction Report
+          </button>
+          <button class="btn btn-cyan btn-full" id="reportDownloadPL" style="justify-content:center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Profit / Loss Report
+          </button>
+        </div>
       </div>`;
       document.body.appendChild(overlay);
       overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
       $('#closeReportDate').onclick = () => overlay.remove();
-      $('#reportDownload').onclick = () => {
+      $('#reportDownloadTx').onclick = () => {
         const from = new Date($('#reportFrom').value + 'T00:00:00');
         const to = new Date($('#reportTo').value + 'T23:59:59');
         if (scope === 'all') doFullReport(from, to);
         else doCompanyReport(companyId, from, to);
+        overlay.remove();
+      };
+      $('#reportDownloadPL').onclick = () => {
+        const from = new Date($('#reportFrom').value + 'T00:00:00');
+        const to = new Date($('#reportTo').value + 'T23:59:59');
+        doProfitLossReport(scope, companyId, from, to);
         overlay.remove();
       };
     }
@@ -929,9 +965,45 @@
       a.click(); URL.revokeObjectURL(a.href);
     }
 
+    function doProfitLossReport(scope, companyId, fromDate, toDate) {
+      let csv = 'Company,Game,Cost Rate(%),Selling Rate(%),Points,Cost Points,Profit/Loss,Date\n';
+      const companies = Object.values(state.companies);
+      const bills = state.bills.filter(b => { const d=new Date(b.date); return d>=fromDate && d<=toDate; });
+      let grandTotalPL = 0;
+
+      for (const comp of companies) {
+        if (scope !== 'all' && comp._id !== companyId) continue;
+        const cb = bills.filter(b => b.companyId === comp._id);
+        for (const bill of cb) {
+          for (const item of (bill.items||[])) {
+            const sellRate = getGameRate(comp, item.gameName) || 0;
+            const costRate = getCostRate(item.gameName);
+            const pts = item.points || 0;
+            const costPts = sellRate ? pts * costRate / sellRate : 0;
+            const pl = pts - costPts;
+            grandTotalPL += pl;
+            csv += `"${comp.name}","${item.gameName||''}",${costRate},${sellRate},${pts.toFixed(2)},${costPts.toFixed(2)},${pl.toFixed(2)},"${new Date(bill.date).toLocaleString()}"\n`;
+          }
+        }
+      }
+      csv += '\n\nTOTAL PROFIT/LOSS\n';
+      csv += `,,,,,,${grandTotalPL.toFixed(2)},\n`;
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      const prefix = scope==='all' ? 'all_companies' : (state.companies[companyId]?.name||'company');
+      a.download = `${prefix}_profit_loss_${fromDate.toISOString().slice(0,10)}_to_${toDate.toISOString().slice(0,10)}.csv`;
+      a.click(); URL.revokeObjectURL(a.href);
+    }
+
     function getGameRate(company, gameName) {
       const ag = (company.assignedGames || []).find(g => g.gameName === gameName);
       return ag ? (ag.rate || 0) : '';
+    }
+
+    function getCostRate(gameName) {
+      const mg = state.masterGames.find(g => g.name === gameName);
+      return mg ? (mg.costRate || 0) : 0;
     }
 
     function getUserLevel(company, username, gameName) {
@@ -960,6 +1032,7 @@
           <div style="display:flex;gap:8px;align-items:flex-end">
             <div style="flex:2"><span class="label">Game Name</span><input class="input" id="mgNewName" placeholder="Enter game name"/></div>
             <div style="flex:1"><span class="label">Points</span><input class="input" id="mgNewPoints" type="number" placeholder="0"/></div>
+            <div style="flex:1"><span class="label">Cost Rate(%)</span><input class="input" id="mgNewCostRate" type="number" placeholder="0"/></div>
             <button class="btn btn-green btn-sm" id="mgAdd"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Add</button>
           </div>
         </div>
@@ -978,6 +1051,7 @@
         <div class="mg-row" style="display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);gap:8px;cursor:pointer;transition:background 0.15s" data-id="${g._id}" onmouseenter="this.style.background='var(--bgHover)'" onmouseleave="this.style.background='transparent'">
           <span style="font-size:16px">🎮</span>
           <span style="flex:1;font-weight:600;font-size:14px">${esc(g.name)}</span>
+          <span class="badge badge-orange" style="margin-right:4px">${g.costRate||0}%</span>
           <span class="badge ${(g.remainingPoints||0) > 0 ? 'badge-cyan' : 'badge-red'}">${(g.remainingPoints||0).toLocaleString()} pts</span>
           <span style="color:var(--textMuted);font-size:12px">▸</span>
         </div>
@@ -992,8 +1066,9 @@
         const name = $('#mgNewName').value.trim();
         const pts = parseFloat($('#mgNewPoints').value) || 0;
         if (!name) return;
-        await db.collection(`${userPath()}/masterGames`).add({ name, totalPoints: pts, remainingPoints: pts });
-        $('#mgNewName').value = ''; $('#mgNewPoints').value = '';
+        const costRate = parseFloat($('#mgNewCostRate').value) || 0;
+        await db.collection(`${userPath()}/masterGames`).add({ name, totalPoints: pts, remainingPoints: pts, costRate });
+        $('#mgNewName').value = ''; $('#mgNewPoints').value = ''; if($('#mgNewCostRate'))$('#mgNewCostRate').value = '';
         await loadAllData();
         renderMasterGamesList();
         bindMasterGameListEvents();
@@ -1031,6 +1106,10 @@
           <span class="label">Remaining Points</span>
           <input class="input" type="number" id="mgDetailPts" value="${g.remainingPoints||0}" />
         </div>
+        <div style="margin-bottom:16px">
+          <span class="label">Cost Rate (%)</span>
+          <input class="input" type="number" id="mgDetailCostRate" value="${g.costRate||0}" />
+        </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-green" id="mgDetailSave" style="flex:1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg>
@@ -1052,7 +1131,8 @@
         if (!newName) return;
         const btn = $('#mgDetailSave');
         btn.disabled = true; btn.innerHTML = 'Saving...';
-        await db.doc(`${userPath()}/masterGames/${g._id}`).update({ name: newName, remainingPoints: newPts });
+        const newCostRate = parseFloat($('#mgDetailCostRate').value) || 0;
+        await db.doc(`${userPath()}/masterGames/${g._id}`).update({ name: newName, remainingPoints: newPts, costRate: newCostRate });
         await loadAllData();
         overlay.remove();
         // Re-render the master games list in the modal behind
@@ -1572,6 +1652,10 @@
 
       if ($('#saveBill')) {
         $('#saveBill').onclick = async () => {
+          const saveBtn = $('#saveBill');
+          const origHTML = saveBtn.innerHTML;
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;margin:0"></span> Saving...';
           const bill = buildBillObject(c);
           // Deduct from master games
           for (const item of state.billItems) {
@@ -1586,6 +1670,8 @@
           }
           await db.collection(`${userPath()}/bills`).add(bill);
           await loadAllData();
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = origHTML;
           $('#billSavedMsg').classList.remove('hidden');
           setTimeout(() => { try { $('#billSavedMsg')?.classList.add('hidden'); } catch(e){} }, 3000);
         };
@@ -1646,7 +1732,7 @@
       const items = state.billItems.map(item => {
         const calc = calcLine(item);
         totalPts += calc.points; totalDollars += calc.dollars;
-        return { gameName:item.gameName, gameId:item.gameId, username:item.username, value:parseFloat(item.value)||0, ...calc };
+        const costRate = getCostRate(item.gameName); return { gameName:item.gameName, gameId:item.gameId, username:item.username, value:parseFloat(item.value)||0, costRate, ...calc };
       });
       const received = state.paymentStatus==='partial'?parseFloat(state.partialAmount)||0:state.paymentStatus==='received'?totalDollars:0;
       return {
@@ -2010,11 +2096,11 @@
           <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap">
             <div style="flex:1;min-width:110px">
               <span class="label" style="font-size:10px">From</span>
-              <input class="input" type="date" id="billHistFrom" style="font-size:12px;padding:6px 8px" />
+              <input class="input" type="datetime-local" id="billHistFrom" style="font-size:12px;padding:6px 8px" />
             </div>
             <div style="flex:1;min-width:110px">
               <span class="label" style="font-size:10px">To</span>
-              <input class="input" type="date" id="billHistTo" style="font-size:12px;padding:6px 8px" />
+              <input class="input" type="datetime-local" id="billHistTo" style="font-size:12px;padding:6px 8px" />
             </div>
             <button class="btn btn-ghost btn-sm" id="billHistFilter" style="font-size:11px">Filter</button>
             <button class="btn btn-ghost btn-sm" id="billHistReset" style="font-size:11px;color:var(--textMuted)">Reset</button>
@@ -2022,7 +2108,7 @@
           <div id="billHistList">
           ${compBills.length===0?'<div style="padding:20px;text-align:center;color:var(--textMuted)">No bills recorded yet</div>':''}
           <div style="max-height:350px;overflow-y:auto">
-            ${compBills.map(b => `<div class="bill-history-item" data-date="${b.date}">
+            ${compBills.map(b => `<div class="bill-history-item" data-date="${b.date}" data-billid="${b._id}">
               <div style="flex:1">
                 <div style="font-size:12px;color:var(--textMuted)">${new Date(b.date).toLocaleDateString()} ${new Date(b.date).toLocaleTimeString()}</div>
                 <div style="font-size:11px;color:var(--textMuted)">${(b.items||[]).length} items</div>
@@ -2034,6 +2120,7 @@
               <span class="badge ${b.paymentStatus==='received'?'badge-green':b.paymentStatus==='partial'?'badge-orange':'badge-red'}">
                 ${b.paymentStatus==='received'?'Paid':b.paymentStatus==='partial'?'Partial':'Unpaid'}
               </span>
+              <button class="btn btn-ghost btn-sm bill-hist-del" data-billid="${b._id}" style="color:var(--red);margin-left:4px;padding:3px 6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>
             </div>`).join('')}
           </div>
           </div>
@@ -2093,8 +2180,8 @@
           const toDate = $('#billHistTo')?.value;
           let billsToDelete;
           if (fromDate && toDate) {
-            const from = new Date(fromDate + 'T00:00:00');
-            const to = new Date(toDate + 'T23:59:59');
+            const from = new Date(fromDate);
+            const to = new Date(toDate);
             billsToDelete = state.bills.filter(b => b.companyId === c._id && new Date(b.date) >= from && new Date(b.date) <= to);
             if (billsToDelete.length === 0) { alert('No bills in selected range'); return; }
             if (!confirm('Delete ' + billsToDelete.length + ' bills from ' + fromDate + ' to ' + toDate + '?')) return;
@@ -2113,8 +2200,8 @@
           const from = $('#billHistFrom')?.value;
           const to = $('#billHistTo')?.value;
           if (!from || !to) return;
-          const fromD = new Date(from + 'T00:00:00');
-          const toD = new Date(to + 'T23:59:59');
+          const fromD = new Date(from);
+          const toD = new Date(to);
           $$('.bill-history-item').forEach(el => {
             const d = new Date(el.dataset.date);
             el.style.display = (d >= fromD && d <= toD) ? '' : 'none';
