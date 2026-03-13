@@ -22,10 +22,10 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg: #0a0a0f;
-      --bgCard: #13111f;
-      --bgInput: #1a1728;
-      --bgHover: #1e1b30;
+      --bg: #080810;
+      --bgCard: rgba(18,16,32,0.75);
+      --bgInput: rgba(22,18,38,0.8);
+      --bgHover: rgba(30,27,48,0.8);
       --purple: #7c3aed;
       --purpleLight: #a78bfa;
       --purpleDark: #1a0a3e;
@@ -35,15 +35,19 @@
       --orange: #f59e0b;
       --pink: #ec4899;
       --blue: #3b82f6;
+      --lime: #84cc16;
       --textPrimary: #f4f2fa;
-      --textSecondary: #b8b0d0;
-      --textMuted: #8078a0;
-      --border: #2a2540;
-      --borderLight: #3a3455;
+      --textSecondary: #c0b8dc;
+      --textMuted: #8a80aa;
+      --border: rgba(60,50,100,0.5);
+      --borderLight: rgba(80,65,130,0.4);
+      --glass: rgba(20,16,40,0.55);
+      --glassBorder: rgba(120,100,200,0.15);
+      --glassHover: rgba(30,24,55,0.7);
     }
 
     body {
-      background: var(--bg);
+      background: #080810;
       color: var(--textPrimary);
       font-family: 'Rajdhani', 'Exo 2', sans-serif;
       min-height: 100vh;
@@ -55,9 +59,10 @@
       position: fixed;
       inset: 0;
       background:
-        radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.05) 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 80%, rgba(236,72,153,0.04) 0%, transparent 50%);
+        radial-gradient(ellipse at 15% 50%, rgba(124,58,237,0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 15%, rgba(6,182,212,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 85%, rgba(236,72,153,0.06) 0%, transparent 40%),
+        radial-gradient(ellipse at 60% 40%, rgba(132,204,22,0.03) 0%, transparent 50%);
       pointer-events: none;
       z-index: 0;
     }
@@ -79,9 +84,10 @@
 
     /* HEADER */
     .header {
-      background: var(--bgCard); border-bottom: 1px solid var(--border);
+      background: var(--glass); border-bottom: 1px solid var(--glassBorder);
       padding: 0 16px; height: 56px; display: flex; align-items: center;
-      justify-content: space-between; backdrop-filter: blur(12px);
+      justify-content: space-between; backdrop-filter: blur(20px) saturate(1.3);
+      -webkit-backdrop-filter: blur(20px) saturate(1.3);
       position: sticky; top: 0; z-index: 100;
     }
     .header-logo { display:flex; align-items:center; gap:10px; cursor:pointer; }
@@ -95,10 +101,11 @@
 
     /* UTILITY BAR */
     .utility-bar {
-      background: var(--bgCard); border-bottom: 1px solid var(--border);
+      background: var(--glass); border-bottom: 1px solid var(--glassBorder);
       padding: 8px 16px; display: flex; align-items: center; justify-content: center;
       gap: 6px; position: sticky; top: 56px; z-index: 99;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(16px) saturate(1.2);
+      -webkit-backdrop-filter: blur(16px) saturate(1.2);
     }
     .util-btn {
       padding: 6px 14px; font-size: 12px; font-weight: 600; border: none;
@@ -115,10 +122,11 @@
 
     /* BUTTONS */
     .btn {
-      padding: 7px 14px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px;
+      padding: 7px 14px; font-size: 13px; font-weight: 600; border: none; border-radius: 10px;
       cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
       transition: all 0.2s; letter-spacing: 0.5px; text-transform: uppercase;
       font-family: 'Rajdhani', sans-serif; white-space: nowrap;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     }
     .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
     .btn:active { transform: translateY(0); }
@@ -144,18 +152,21 @@
 
     /* INPUTS */
     .input {
-      width: 100%; padding: 9px 12px; background: var(--bgInput);
-      border: 1px solid var(--border); border-radius: 8px; color: var(--textPrimary);
-      font-size: 14px; font-weight: 500; outline: none; transition: border-color 0.2s;
+      width: 100%; padding: 10px 12px; background: rgba(15,12,28,0.6);
+      border: 1px solid rgba(80,65,130,0.3); border-radius: 10px; color: var(--textPrimary);
+      font-size: 14px; font-weight: 500; outline: none; transition: all 0.2s;
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     }
-    .input:focus { border-color: var(--purple); }
+    .input:focus { border-color: var(--purple); box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
     .input::placeholder { color: #9990b8; font-weight: 500; }
     .input-search { padding-left: 34px; }
 
     /* CARD */
     .card {
-      background: var(--bgCard); border: 1px solid var(--border);
-      border-radius: 12px; padding: 20px;
+      background: var(--glass); border: 1px solid var(--glassBorder);
+      border-radius: 14px; padding: 20px;
+      backdrop-filter: blur(12px) saturate(1.2);
+      -webkit-backdrop-filter: blur(12px) saturate(1.2);
     }
 
     /* BADGE */
@@ -182,8 +193,11 @@
       display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px;
     }
     .modal {
-      background:var(--bgCard); border:1px solid var(--border); border-radius:16px;
+      background:rgba(16,13,30,0.85); border:1px solid var(--glassBorder); border-radius:18px;
       padding:24px; width:100%; max-width:550px; max-height:80vh; overflow-y:auto;
+      backdrop-filter: blur(24px) saturate(1.3);
+      -webkit-backdrop-filter: blur(24px) saturate(1.3);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
     .modal-header {
       display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;
@@ -242,9 +256,10 @@
 
     /* COMPANY LIST */
     .company-item {
-      display:flex; align-items:center; padding:14px 18px; background:var(--bgCard);
-      border:1px solid var(--border); border-radius:12px; margin-bottom:10px;
-      cursor:pointer; transition: all 0.2s;
+      display:flex; align-items:center; padding:14px 18px; background:var(--glass);
+      border:1px solid var(--glassBorder); border-radius:14px; margin-bottom:10px;
+      cursor:pointer; transition: all 0.25s;
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     }
     .company-item:hover {
       border-color: var(--purple); background: var(--bgHover);
@@ -257,14 +272,15 @@
 
     /* TABS */
     .tabs {
-      display:flex; gap:4px; margin-bottom:22px; background:var(--bgInput);
-      border-radius:12px; padding:4px;
+      display:flex; gap:4px; margin-bottom:22px; background:rgba(15,12,28,0.5);
+      border-radius:14px; padding:4px; border:1px solid var(--glassBorder);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     }
     .tab {
       flex:1; padding:11px 14px; border-radius:10px; border:none;
-      cursor:pointer; font-size:13px; font-weight:700; font-family:'Orbitron',monospace;
+      cursor:pointer; font-size:12px; font-weight:700; font-family:'Orbitron',monospace;
       display:flex; align-items:center; justify-content:center; gap:7px;
-      transition:all 0.2s; text-transform:uppercase; letter-spacing:0.5px;
+      transition:all 0.25s; text-transform:uppercase; letter-spacing:0.5px;
       background: transparent; color: var(--textSecondary);
     }
     .tab.active { color: #fff; }
@@ -291,8 +307,9 @@
     .bill-item .card { padding: 14px; }
     .bill-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
     .bill-result {
-      margin-top:8px; padding:8px 12px; border-radius:6px;
-      background:var(--bgInput); display:flex; gap:16px; font-size:13px; font-weight:600;
+      margin-top:8px; padding:8px 12px; border-radius:8px;
+      background:rgba(15,12,28,0.5); border:1px solid var(--glassBorder);
+      display:flex; gap:16px; font-size:13px; font-weight:600;
     }
     .bill-result .pts { color: var(--cyan); }
     .bill-result .amt { color: var(--green); }
@@ -300,8 +317,9 @@
 
     /* TOTALS */
     .totals-card {
-      background: linear-gradient(135deg, var(--purpleDark), var(--bgCard));
-      border: 1px solid rgba(124,58,237,0.25);
+      background: linear-gradient(135deg, rgba(26,10,62,0.6), rgba(18,16,32,0.6));
+      border: 1px solid rgba(124,58,237,0.2);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     }
 
     /* GAME TAG */
@@ -316,16 +334,16 @@
 
     /* ASSIGNED GAME ROW */
     .assigned-row {
-      display:flex; align-items:center; padding:11px 14px; background:var(--bgCard);
-      border:1px solid var(--border); border-radius:10px; margin-bottom:6px;
-      transition: border-color 0.2s;
+      display:flex; align-items:center; padding:12px 14px; background:var(--glass);
+      border:1px solid var(--glassBorder); border-radius:12px; margin-bottom:6px;
+      transition: all 0.2s;
     }
     .assigned-row:hover { border-color: rgba(124,58,237,0.4); }
 
     /* USERNAME ROW */
     .username-row {
-      display:flex; align-items:center; padding:9px 12px; background:var(--bgCard);
-      border:1px solid var(--border); border-radius:8px; margin-bottom:5px;
+      display:flex; align-items:center; padding:10px 14px; background:var(--glass);
+      border:1px solid var(--glassBorder); border-radius:10px; margin-bottom:6px;
     }
 
     /* BILL HISTORY ITEM */
@@ -365,20 +383,21 @@
       box-shadow: 0 0 40px rgba(124,58,237,0.3);
     }
     .login-title {
-      font-family:'Orbitron',monospace; font-size:26px; font-weight:800;
-      background: linear-gradient(135deg, var(--purpleLight), var(--cyan));
+      font-family:'Orbitron',monospace; font-size:28px; font-weight:900;
+      background: linear-gradient(135deg, #a78bfa, #06b6d4, #10b981);
       -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-      margin-bottom:8px;
+      margin-bottom:8px; letter-spacing:3px;
     }
     .login-subtitle { color:var(--textSecondary); font-size:15px; margin-bottom:28px; line-height:1.6; }
     .google-btn {
-      width:100%; padding:13px 24px; border-radius:12px;
-      border:1px solid var(--border); background:var(--bgInput);
+      width:100%; padding:14px 24px; border-radius:14px;
+      border:1px solid rgba(120,100,200,0.3); background:rgba(20,16,40,0.6);
       color:var(--textPrimary); font-size:15px; font-weight:600;
       cursor:pointer; display:flex; align-items:center; justify-content:center;
-      gap:12px; transition:all 0.2s; font-family:'Rajdhani',sans-serif;
+      gap:12px; transition:all 0.3s; font-family:'Rajdhani',sans-serif;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     }
-    .google-btn:hover { border-color:var(--purple); background:var(--bgHover); box-shadow:0 0 20px rgba(124,58,237,0.2); }
+    .google-btn:hover { border-color:var(--purple); background:rgba(30,24,55,0.8); box-shadow:0 0 30px rgba(124,58,237,0.25), 0 0 60px rgba(6,182,212,0.1); transform:translateY(-1px); }
 
     /* LOADING */
     .loading-page {
@@ -403,9 +422,10 @@
     }
     .account-menu {
       position:absolute; top:calc(100% + 8px); right:0;
-      background:var(--bgCard); border:1px solid var(--border);
-      border-radius:12px; padding:8px; min-width:200px;
-      box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:101;
+      background:rgba(16,13,30,0.9); border:1px solid var(--glassBorder);
+      border-radius:14px; padding:8px; min-width:200px;
+      box-shadow:0 12px 40px rgba(0,0,0,0.6); z-index:101;
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     }
     .account-menu-item {
       padding:8px 12px; cursor:pointer; border-radius:6px;
@@ -447,6 +467,8 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
     db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+    // Handle redirect result for iOS Safari
+    auth.getRedirectResult().catch(() => {});
 
     // ============================================================
     // STATE
@@ -476,6 +498,11 @@
       return `users/${state.user.uid}`;
     }
 
+    let _reloadTimer = null;
+    function scheduleReload() {
+      clearTimeout(_reloadTimer);
+      _reloadTimer = setTimeout(async () => { await loadAllData(); render(); }, 200);
+    }
     async function loadAllData() {
       if (!state.user) return;
       try {
@@ -566,7 +593,7 @@
             <h1 class="login-title" style="font-size:28px;margin-bottom:6px">GAMEBILL</h1>
             <p style="color:var(--textSecondary);font-size:14px;font-weight:500;letter-spacing:0.5px">Game Points Billing & Management</p>
           </div>
-          <div class="card" style="padding:28px 24px;border:1px solid rgba(124,58,237,0.2);background:linear-gradient(180deg,rgba(19,17,31,0.95),rgba(26,10,62,0.5));box-shadow:0 0 60px rgba(124,58,237,0.12),0 8px 32px rgba(0,0,0,0.4)">
+          <div class="card" style="padding:28px 24px;border:1px solid rgba(124,58,237,0.2);background:linear-gradient(180deg,rgba(22,18,38,0.9),rgba(30,12,70,0.7));box-shadow:0 0 80px rgba(124,58,237,0.2),0 0 120px rgba(6,182,212,0.08),0 12px 40px rgba(0,0,0,0.5);border:1px solid rgba(120,100,200,0.25)">
             <p style="font-size:13px;color:var(--textMuted);margin-bottom:18px;text-align:center">Sign in to manage your accounts</p>
             <button class="google-btn" id="googleSignIn">
               <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
@@ -592,7 +619,14 @@
         btn.disabled = true;
         try {
           const provider = new firebase.auth.GoogleAuthProvider();
-          await auth.signInWithPopup(provider);
+          // Use redirect on iOS Safari as popup is blocked
+          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          if (isSafari || isIOS) {
+            await auth.signInWithRedirect(provider);
+          } else {
+            await auth.signInWithPopup(provider);
+          }
         } catch (e) {
           const err = $('#loginError');
           err.classList.remove('hidden');
@@ -642,6 +676,10 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Import Data
               </div>
+              <div class="account-menu-item" id="menuDeleteAll" style="color:var(--red)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                Delete All Data
+              </div>
               <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
                 <div class="account-menu-item danger" id="menuSignOut">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -684,6 +722,28 @@
       $('#menuGenReport').onclick = () => { $('#accountMenu').classList.add('hidden'); showReportDatePicker('all'); };
       $('#menuExport').onclick = () => { doExport(); $('#accountMenu').classList.add('hidden'); };
       $('#menuImport').onclick = () => { doImport(); $('#accountMenu').classList.add('hidden'); };
+      $('#menuDeleteAll').onclick = async () => {
+        $('#accountMenu').classList.add('hidden');
+        if (!confirm('⚠️ WARNING: This will permanently delete ALL your data including all companies, games, bills, and settings. This action CANNOT be undone.\n\nAre you sure?')) return;
+        if (!confirm('FINAL WARNING: All data will be permanently erased. Click OK to proceed with deletion.')) return;
+        try {
+          const loadEl = document.createElement('div');
+          loadEl.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999';
+          loadEl.innerHTML = '<div style="text-align:center"><div class="spinner"></div><div style="color:var(--red);font-family:Orbitron,monospace;font-size:13px;margin-top:10px">Deleting all data...</div></div>';
+          document.body.appendChild(loadEl);
+          // Delete all subcollections
+          for (const [cid, cdata] of Object.entries(state.companies)) {
+            for (const ag of (cdata.assignedGames||[])) await db.doc(userPath()+'/companies/'+cid+'/assignedGames/'+ag._id).delete();
+            for (const un of (cdata.usernames||[])) await db.doc(userPath()+'/companies/'+cid+'/usernames/'+un._id).delete();
+            await db.doc(userPath()+'/companies/'+cid).delete();
+          }
+          for (const mg of state.masterGames) await db.doc(userPath()+'/masterGames/'+mg._id).delete();
+          for (const bill of state.bills) await db.doc(userPath()+'/bills/'+bill._id).delete();
+          loadEl.remove();
+          await loadAllData(); render();
+          alert('All data has been deleted.');
+        } catch(e) { alert('Delete failed: '+e.message); }
+      };
       $('#menuSignOut').onclick = () => { auth.signOut(); };
       document.addEventListener('click', () => {
         const m = $('#accountMenu');
@@ -1060,7 +1120,7 @@
         </div>
         <div class="tabs">
           <button class="tab tab-green ${state.companyTab==='billing'?'active':''}" data-tab="billing"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg> Billing</button>
-          <button class="tab tab-cyan ${state.companyTab==='games'?'active':''}" data-tab="games"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="16" cy="11" r="0.5" fill="currentColor"/><circle cx="18" cy="13" r="0.5" fill="currentColor"/></svg> Games</button>
+          <button class="tab tab-cyan ${state.companyTab==='games'?'active':''}" data-tab="games"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="16" cy="11" r="0.5" fill="currentColor"/><circle cx="18" cy="13" r="0.5" fill="currentColor"/></svg> Games Config</button>
           <button class="tab tab-purple ${state.companyTab==='settings'?'active':''}" data-tab="settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
         </div>
         <div id="tabContent">
@@ -1211,8 +1271,14 @@
             </div>
           </div>
           <div>
-            <span class="label">${state.convMode==='pts2dollar'?'Points':'Amount ($)'}</span>
-            <input class="input bill-value-input" data-idx="${idx}" type="number" placeholder="${state.convMode==='pts2dollar'?'Enter points':'Enter amount'}" value="${item.value}" />
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <span class="label" style="margin:0">${(item.mode||state.convMode)==='pts2dollar'?'Points':'Amount ($)'}</span>
+              <div class="bill-mode-switch" data-idx="${idx}" style="display:inline-flex;cursor:pointer;font-size:10px;font-family:'Orbitron',monospace;font-weight:700;border-radius:4px;overflow:hidden;border:1px solid var(--glassBorder)">
+                <span style="padding:2px 6px;background:${(item.mode||state.convMode)==='pts2dollar'?'var(--cyan)':'transparent'};color:${(item.mode||state.convMode)==='pts2dollar'?'#000':'var(--textMuted)'};transition:all 0.2s">P</span>
+                <span style="padding:2px 6px;background:${(item.mode||state.convMode)==='dollar2pts'?'var(--green)':'transparent'};color:${(item.mode||state.convMode)==='dollar2pts'?'#000':'var(--textMuted)'};transition:all 0.2s">$</span>
+              </div>
+            </div>
+            <input class="input bill-value-input" data-idx="${idx}" type="number" placeholder="${(item.mode||state.convMode)==='pts2dollar'?'Enter points':'Enter $'}" value="${item.value}" />
           </div>
         </div>
         ${item.value ? `<div class="bill-result">
@@ -1226,12 +1292,11 @@
     function calcLine(item) {
       const val = parseFloat(item.value) || 0;
       const rate = item.rate || 0;
-      const rateDecimal = rate / 100; // Convert percentage to decimal
-      if (state.convMode === 'pts2dollar') {
-        // Entering points, calculate dollars: points * rate%
+      const rateDecimal = rate / 100;
+      const mode = item.mode || state.convMode;
+      if (mode === 'pts2dollar') {
         return { points: val, dollars: rateDecimal ? val * rateDecimal : 0 };
       } else {
-        // Entering dollars, calculate points: dollars / rate% (truncate points, no decimal)
         return { dollars: val, points: rateDecimal ? Math.trunc(val / rateDecimal) : 0 };
       }
     }
@@ -1249,12 +1314,23 @@
       };
 
       $('#addBillItem').onclick = () => {
-        state.billItems.push({ id: genId(), gameId: '', gameName: '', username: '', value: '', rate: 0 });
+        state.billItems.push({ id: genId(), gameId: '', gameName: '', username: '', value: '', rate: 0, mode: state.convMode });
         render();
       };
 
       $$('.bill-remove').forEach(btn => {
         btn.onclick = () => { state.billItems.splice(parseInt(btn.dataset.idx), 1); render(); };
+      });
+
+      // Per-item mode switch
+      $$('.bill-mode-switch').forEach(sw => {
+        sw.onclick = () => {
+          const idx = parseInt(sw.dataset.idx);
+          const cur = state.billItems[idx].mode || state.convMode;
+          state.billItems[idx].mode = cur === 'pts2dollar' ? 'dollar2pts' : 'pts2dollar';
+          state.billItems[idx].value = ''; // Reset value on mode switch
+          render();
+        };
       });
 
       // Searchable game dropdowns in billing
@@ -1974,15 +2050,28 @@
     });
 
 
-    // PWA Service Worker for installability
+    // PWA Service Worker
     if ('serviceWorker' in navigator) {
-      const swBlob = new Blob([`
-        self.addEventListener('install', e => { self.skipWaiting(); });
-        self.addEventListener('activate', e => { clients.claim(); });
-        self.addEventListener('fetch', e => { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); });
-      `], { type: 'application/javascript' });
+      const swCode = `
+        const CACHE = 'gamebill-v1';
+        self.addEventListener('install', e => {
+          e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/'])).catch(()=>{}));
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', e => { e.waitUntil(clients.claim()); });
+        self.addEventListener('fetch', e => {
+          if (e.request.method !== 'GET') return;
+          e.respondWith(
+            fetch(e.request).then(r => {
+              if (r.ok) { const c=r.clone(); caches.open(CACHE).then(cache=>cache.put(e.request,c)).catch(()=>{}); }
+              return r;
+            }).catch(() => caches.match(e.request))
+          );
+        });
+      `;
+      const swBlob = new Blob([swCode], { type: 'application/javascript' });
       const swUrl = URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swUrl).catch(() => {});
+      navigator.serviceWorker.register(swUrl, { scope: '/' }).catch(() => {});
     }
     // Initial render
     render();
