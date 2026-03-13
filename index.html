@@ -511,11 +511,16 @@
     }
 
     let _reloadTimer = null;
+    let _lastLoad = 0;
     function scheduleReload() {
       clearTimeout(_reloadTimer);
-      _reloadTimer = setTimeout(async () => { await loadAllData(); render(); }, 200);
+      _reloadTimer = setTimeout(async () => { await loadAllData(); render(); }, 150);
     }
-    async function loadAllData() {
+    async function loadAllData(force) {
+      // Skip if loaded recently (within 1s) unless forced
+      const now = Date.now();
+      if (!force && now - _lastLoad < 1000) return;
+      _lastLoad = now;
       if (!state.user) return;
       try {
         // Load master games
@@ -861,10 +866,10 @@
         const cb = bills.filter(b => b.companyId === comp._id);
         for (const bill of cb) {
           for (const item of (bill.items||[])) {
-            const sellRate = getGameRate(comp, item.gameName);
+            const sellRate = getGameRate(comp, item.gameName) || 0;
             const costR = getCostRate(item.gameName);
             const pts = item.points || 0;
-            totalPL += pts - (costR ? pts * costR / (sellRate||1) : 0);
+            totalPL += (pts * sellRate / 100) - (pts * costR / 100);
           }
         }
       }
@@ -879,7 +884,7 @@
         <div style="display:flex;gap:12px;margin-bottom:16px;padding:12px;border-radius:10px;background:rgba(15,12,28,0.5);border:1px solid var(--glassBorder)">
           <div style="flex:1;text-align:center">
             <div style="font-size:10px;color:var(--textMuted);text-transform:uppercase">Total P/L</div>
-            <div style="font-size:18px;font-weight:700;font-family:'Orbitron',monospace;color:${totalPL>=0?'#34d399':'var(--red)'}">${totalPL>=0?'+':''}${totalPL.toFixed(0)} pts</div>
+            <div style="font-size:18px;font-weight:700;font-family:'Orbitron',monospace;color:${totalPL>=0?'#34d399':'var(--red)'}">${totalPL>=0?'+':''}$${totalPL.toFixed(2)}</div>
           </div>
         </div>
         <p style="font-size:12px;color:var(--textSecondary);margin-bottom:12px">${scope==='all'?'All companies':'Company'} report</p>
@@ -966,7 +971,7 @@
     }
 
     function doProfitLossReport(scope, companyId, fromDate, toDate) {
-      let csv = 'Company,Game,Cost Rate(%),Selling Rate(%),Points,Cost Points,Profit/Loss,Date\n';
+      let csv = 'Company,Game,Cost Rate(%),Selling Rate(%),Points,Cost Price($),Sell Price($),Profit/Loss($),Date\n';
       const companies = Object.values(state.companies);
       const bills = state.bills.filter(b => { const d=new Date(b.date); return d>=fromDate && d<=toDate; });
       let grandTotalPL = 0;
@@ -979,15 +984,16 @@
             const sellRate = getGameRate(comp, item.gameName) || 0;
             const costRate = getCostRate(item.gameName);
             const pts = item.points || 0;
-            const costPts = sellRate ? pts * costRate / sellRate : 0;
-            const pl = pts - costPts;
+            const costPrice = pts * (costRate / 100);
+            const sellPrice = pts * (sellRate / 100);
+            const pl = sellPrice - costPrice;
             grandTotalPL += pl;
-            csv += `"${comp.name}","${item.gameName||''}",${costRate},${sellRate},${pts.toFixed(2)},${costPts.toFixed(2)},${pl.toFixed(2)},"${new Date(bill.date).toLocaleString()}"\n`;
+            csv += `"${comp.name}","${item.gameName||''}",${costRate},${sellRate},${pts.toFixed(2)},$${costPrice.toFixed(2)},$${sellPrice.toFixed(2)},$${pl.toFixed(2)},"${new Date(bill.date).toLocaleString()}"\n`;
           }
         }
       }
       csv += '\n\nTOTAL PROFIT/LOSS\n';
-      csv += `,,,,,,${grandTotalPL.toFixed(2)},\n`;
+      csv += `\nTOTAL,,,,,,$${grandTotalPL.toFixed(2)},\n`;
 
       const blob = new Blob([csv], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -1029,11 +1035,14 @@
           <input class="input input-search" id="mgSearch" placeholder="Search games..." />
         </div>
         <div class="card" style="padding:12px;margin-bottom:14px;background:var(--bgInput)">
+          <div style="margin-bottom:8px">
+            <span class="label">Game Name</span>
+            <input class="input" id="mgNewName" placeholder="Enter game name"/>
+          </div>
           <div style="display:flex;gap:8px;align-items:flex-end">
-            <div style="flex:2"><span class="label">Game Name</span><input class="input" id="mgNewName" placeholder="Enter game name"/></div>
             <div style="flex:1"><span class="label">Points</span><input class="input" id="mgNewPoints" type="number" placeholder="0"/></div>
-            <div style="flex:1"><span class="label">Cost Rate(%)</span><input class="input" id="mgNewCostRate" type="number" placeholder="0"/></div>
-            <button class="btn btn-green btn-sm" id="mgAdd"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Add</button>
+            <div style="flex:1"><span class="label">Cost(%)</span><input class="input" id="mgNewCostRate" type="number" placeholder="0"/></div>
+            <button class="btn btn-green btn-sm" id="mgAdd" style="flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Add</button>
           </div>
         </div>
         <div id="mgList" style="max-height:350px;overflow-y:auto"></div>
@@ -1269,6 +1278,7 @@
       const items = state.billItems;
       const assignedGames = c.assignedGames || [];
       const usernames = c.usernames || [];
+      const companyBills = state.bills.filter(b => b.companyId === c._id).sort((a,b) => new Date(b.date)-new Date(a.date));
 
       let totalPts = 0, totalDollars = 0;
       items.forEach(item => {
@@ -1336,6 +1346,45 @@
         <div id="billSavedMsg" class="hidden" style="margin-top:10px">
           <div class="card" style="background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.2)">
             <span style="color:var(--green);font-weight:600">✓ Bill saved successfully!</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <h4 style="font-family:'Orbitron',monospace;font-size:13px;color:var(--purpleLight)">BILL HISTORY</h4>
+            <button class="btn btn-ghost btn-sm" id="clearBillHistory" style="color:var(--red);font-size:11px">Clear</button>
+          </div>
+          <div style="margin-bottom:10px">
+            <input class="input" id="billHistSearch" placeholder="Search game or username..." style="font-size:13px" />
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-end;flex-wrap:wrap">
+            <div style="flex:1;min-width:100px">
+              <span class="label" style="font-size:10px">From</span>
+              <input class="input" type="date" id="billHistFrom" style="font-size:12px;padding:6px 8px" />
+            </div>
+            <div style="flex:1;min-width:100px">
+              <span class="label" style="font-size:10px">To</span>
+              <input class="input" type="date" id="billHistTo" style="font-size:12px;padding:6px 8px" />
+            </div>
+            <button class="btn btn-ghost btn-sm" id="billHistFilter" style="font-size:11px">Filter</button>
+            <button class="btn btn-ghost btn-sm" id="billHistReset" style="font-size:11px;color:var(--textMuted)">Reset</button>
+          </div>
+          <div id="billHistList" style="max-height:300px;overflow-y:auto">
+            ${companyBills.length===0?'<div style="padding:16px;text-align:center;color:var(--textMuted);font-size:13px">No bills yet</div>':''}
+            ${companyBills.map(b => `<div class="bill-history-item" data-date="${b.date}" data-billid="${b._id}" data-search="${(b.items||[]).map(i=>(i.gameName||'')+(i.username||'')).join(' ').toLowerCase()}">
+              <div style="flex:1">
+                <div style="font-size:12px;color:var(--textMuted)">${new Date(b.date).toLocaleDateString()} ${new Date(b.date).toLocaleTimeString()}</div>
+                <div style="font-size:11px;color:var(--textMuted)">${(b.items||[]).length} items</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-weight:700;color:#34d399;font-family:'Orbitron',monospace;font-size:13px">$${(b.totalDollars||0).toFixed(2)}</div>
+                <div style="font-size:11px;color:#22d3ee">${(b.totalPoints||0).toFixed(2)} pts</div>
+              </div>
+              <span class="badge ${b.paymentStatus==='received'?'badge-green':b.paymentStatus==='partial'?'badge-orange':'badge-red'}" style="margin:0 4px">
+                ${b.paymentStatus==='received'?'Paid':b.paymentStatus==='partial'?'Partial':'Due'}
+              </span>
+              <button class="btn btn-ghost btn-sm bill-hist-del" data-billid="${b._id}" style="color:var(--red);padding:3px 5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>
+            </div>`).join('')}
           </div>
         </div>
       `;
@@ -1687,6 +1736,54 @@
           render();
         };
       }
+
+      // Bill history bindings (now in billing tab)
+      if ($('#billHistSearch')) {
+        const filterHist = () => {
+          const q = ($('#billHistSearch')?.value||'').toLowerCase();
+          const from = $('#billHistFrom')?.value;
+          const to = $('#billHistTo')?.value;
+          const fromD = from ? new Date(from+'T00:00:00') : null;
+          const toD = to ? new Date(to+'T23:59:59') : null;
+          $$('.bill-history-item').forEach(el => {
+            const d = new Date(el.dataset.date);
+            const matchDate = (!fromD || d>=fromD) && (!toD || d<=toD);
+            const matchSearch = !q || (el.dataset.search||'').includes(q);
+            el.style.display = (matchDate && matchSearch) ? '' : 'none';
+          });
+        };
+        $('#billHistSearch').oninput = filterHist;
+        if ($('#billHistFilter')) $('#billHistFilter').onclick = filterHist;
+        if ($('#billHistReset')) {
+          $('#billHistReset').onclick = () => {
+            $('#billHistFrom').value=''; $('#billHistTo').value=''; $('#billHistSearch').value='';
+            $$('.bill-history-item').forEach(el => el.style.display='');
+          };
+        }
+      }
+      if ($('#clearBillHistory')) {
+        $('#clearBillHistory').onclick = async () => {
+          const compBills = state.bills.filter(b => b.companyId === c._id);
+          if (compBills.length===0) return;
+          if (!confirm('Delete all '+compBills.length+' bills?')) return;
+          for (const bill of compBills) { await db.doc(userPath()+'/bills/'+bill._id).delete(); }
+          state.bills = state.bills.filter(b => b.companyId !== c._id);
+          render();
+        };
+      }
+      $$('.bill-hist-del').forEach(btn => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          if (!confirm('Delete this bill?')) return;
+          const bid = btn.dataset.billid;
+          btn.disabled = true; btn.innerHTML = '...';
+          try {
+            await db.doc(userPath()+'/bills/'+bid).delete();
+            state.bills = state.bills.filter(b => b._id !== bid);
+            btn.closest('.bill-history-item').remove();
+          } catch(e) { alert('Delete failed'); }
+        };
+      });
     }
 
     function updateTotals() {
@@ -2088,43 +2185,6 @@
             Download Report
           </button>
         </div>
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <h4 style="font-family:'Orbitron',monospace;font-size:13px">BILL HISTORY</h4>
-            <button class="btn btn-ghost btn-sm" id="clearBillHistory" style="color:var(--red);font-size:11px">Clear</button>
-          </div>
-          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap">
-            <div style="flex:1;min-width:110px">
-              <span class="label" style="font-size:10px">From</span>
-              <input class="input" type="datetime-local" id="billHistFrom" style="font-size:12px;padding:6px 8px" />
-            </div>
-            <div style="flex:1;min-width:110px">
-              <span class="label" style="font-size:10px">To</span>
-              <input class="input" type="datetime-local" id="billHistTo" style="font-size:12px;padding:6px 8px" />
-            </div>
-            <button class="btn btn-ghost btn-sm" id="billHistFilter" style="font-size:11px">Filter</button>
-            <button class="btn btn-ghost btn-sm" id="billHistReset" style="font-size:11px;color:var(--textMuted)">Reset</button>
-          </div>
-          <div id="billHistList">
-          ${compBills.length===0?'<div style="padding:20px;text-align:center;color:var(--textMuted)">No bills recorded yet</div>':''}
-          <div style="max-height:350px;overflow-y:auto">
-            ${compBills.map(b => `<div class="bill-history-item" data-date="${b.date}" data-billid="${b._id}">
-              <div style="flex:1">
-                <div style="font-size:12px;color:var(--textMuted)">${new Date(b.date).toLocaleDateString()} ${new Date(b.date).toLocaleTimeString()}</div>
-                <div style="font-size:11px;color:var(--textMuted)">${(b.items||[]).length} items</div>
-              </div>
-              <div style="text-align:right">
-                <div style="font-weight:700;color:var(--green);font-family:'Orbitron',monospace;font-size:13px">$${(b.totalDollars||0).toFixed(2)}</div>
-                <div style="font-size:11px;color:var(--cyan)">${(b.totalPoints||0).toFixed(2)} pts</div>
-              </div>
-              <span class="badge ${b.paymentStatus==='received'?'badge-green':b.paymentStatus==='partial'?'badge-orange':'badge-red'}">
-                ${b.paymentStatus==='received'?'Paid':b.paymentStatus==='partial'?'Partial':'Unpaid'}
-              </span>
-              <button class="btn btn-ghost btn-sm bill-hist-del" data-billid="${b._id}" style="color:var(--red);margin-left:4px;padding:3px 6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>
-            </div>`).join('')}
-          </div>
-          </div>
-        </div>
         <div class="card" style="border-color:rgba(239,68,68,0.25)">
           <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:4px;color:var(--red)">DANGER ZONE</h4>
           <p style="font-size:12px;color:var(--textMuted);margin-bottom:14px">Permanently delete this company and all its assigned games, usernames, and bills.</p>
@@ -2173,47 +2233,6 @@
       // Download report
       $('#downloadReport').onclick = () => { showReportDatePicker('company', c._id); };
 
-      // Clear bill history
-      if ($('#clearBillHistory')) {
-        $('#clearBillHistory').onclick = async () => {
-          const fromDate = $('#billHistFrom')?.value;
-          const toDate = $('#billHistTo')?.value;
-          let billsToDelete;
-          if (fromDate && toDate) {
-            const from = new Date(fromDate);
-            const to = new Date(toDate);
-            billsToDelete = state.bills.filter(b => b.companyId === c._id && new Date(b.date) >= from && new Date(b.date) <= to);
-            if (billsToDelete.length === 0) { alert('No bills in selected range'); return; }
-            if (!confirm('Delete ' + billsToDelete.length + ' bills from ' + fromDate + ' to ' + toDate + '?')) return;
-          } else {
-            billsToDelete = state.bills.filter(b => b.companyId === c._id);
-            if (billsToDelete.length === 0) return;
-            if (!confirm('Delete all ' + billsToDelete.length + ' bills?')) return;
-          }
-          for (const bill of billsToDelete) { await db.doc(`${userPath()}/bills/${bill._id}`).delete(); }
-          await loadAllData(); render();
-        };
-      }
-
-      if ($('#billHistFilter')) {
-        $('#billHistFilter').onclick = () => {
-          const from = $('#billHistFrom')?.value;
-          const to = $('#billHistTo')?.value;
-          if (!from || !to) return;
-          const fromD = new Date(from);
-          const toD = new Date(to);
-          $$('.bill-history-item').forEach(el => {
-            const d = new Date(el.dataset.date);
-            el.style.display = (d >= fromD && d <= toD) ? '' : 'none';
-          });
-        };
-        $('#billHistReset').onclick = () => {
-          $('#billHistFrom').value = '';
-          $('#billHistTo').value = '';
-          $$('.bill-history-item').forEach(el => el.style.display = '');
-        };
-      }
-
       // Delete company
       $('#deleteCompanyBtn').onclick = async () => {
         if (!confirm('Delete company "' + c.name + '" and all its data? This cannot be undone.')) return;
@@ -2248,7 +2267,7 @@
         };
         state.view = 'loading';
         render();
-        await loadAllData();
+        await loadAllData(true);
         state.view = 'companies';
         render();
       } else {
