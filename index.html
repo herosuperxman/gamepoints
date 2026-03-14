@@ -165,16 +165,25 @@
     .input[type="date"], .input[type="datetime-local"], .input[type="time"] {
       color-scheme: dark;
       -webkit-appearance: none;
+      min-height: 40px;
     }
     .input[type="date"]::-webkit-calendar-picker-indicator,
     .input[type="datetime-local"]::-webkit-calendar-picker-indicator {
       filter: invert(0.7) sepia(1) hue-rotate(220deg) saturate(3);
       cursor: pointer;
-      opacity: 0.8;
+      opacity: 0.85;
+      padding: 4px;
+      min-width: 20px;
+      min-height: 20px;
     }
     .input[type="date"]::-webkit-calendar-picker-indicator:hover,
     .input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
       opacity: 1;
+      filter: invert(0.8) sepia(1) hue-rotate(220deg) saturate(4);
+    }
+    /* Mobile: ensure calendar icon doesn't get clipped */
+    @media (max-width: 600px) {
+      .input[type="datetime-local"] { font-size: 12px !important; padding-right: 4px; }
     }
 
     /* CARD */
@@ -526,41 +535,118 @@
       return `users/${state.user.uid}`;
     }
 
-    let _reloadTimer = null;
-    let _lastLoad = 0;
-    function scheduleReload() {
-      clearTimeout(_reloadTimer);
-      _reloadTimer = setTimeout(async () => { await loadAllData(); render(); }, 150);
+    // Pending writes counter for sync indicator
+    let _pendingWrites = 0;
+    function startWrite() {
+      _pendingWrites++;
+      updateSyncIndicator();
     }
+    function endWrite() {
+      _pendingWrites = Math.max(0, _pendingWrites - 1);
+      updateSyncIndicator();
+    }
+    function updateSyncIndicator() {
+      const btn = document.getElementById('btnSync');
+      if (!btn) return;
+      if (_pendingWrites > 0) {
+        btn.classList.add('syncing');
+        const lbl = btn.querySelector('.util-label');
+        if (lbl) lbl.textContent = 'Saving...';
+      } else {
+        btn.classList.remove('syncing');
+        const lbl = btn.querySelector('.util-label');
+        if (lbl) lbl.textContent = 'Sync';
+      }
+    }
+
+    // Background write helper - doesn't block UI
+    function bgWrite(promise) {
+      startWrite();
+      promise.then(() => endWrite()).catch(e => { endWrite(); console.error('Write error:', e); });
+    }
+
+    let _unsubs = []; // Firestore listener unsubscribers
+    function stopListeners() { _unsubs.forEach(fn => fn()); _unsubs = []; }
+
+    // One-time initial load (fast from cache)
     async function loadAllData(force) {
-      // Skip if loaded recently (within 1s) unless forced
-      const now = Date.now();
-      if (!force && now - _lastLoad < 1000) return;
-      _lastLoad = now;
       if (!state.user) return;
       try {
-        // Load master games
-        const mgSnap = await db.collection(`${userPath()}/masterGames`).get();
+        const [mgSnap, billSnap, compSnap] = await Promise.all([
+          db.collection(userPath()+'/masterGames').get(),
+          db.collection(userPath()+'/bills').orderBy('date','desc').limit(100).get(),
+          db.collection(userPath()+'/companies').get(),
+        ]);
         state.masterGames = mgSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
-
-        // Load bills
-        const billSnap = await db.collection(`${userPath()}/bills`).get();
         state.bills = billSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
-
-        // Load companies with subcollections
-        const compSnap = await db.collection(`${userPath()}/companies`).get();
-        state.companies = {};
-        for (const doc of compSnap.docs) {
+        // Load company subcollections in parallel
+        const compPromises = compSnap.docs.map(async doc => {
           const cData = { _id: doc.id, ...doc.data() };
-          const agSnap = await db.collection(`${userPath()}/companies/${doc.id}/assignedGames`).get();
+          const [agSnap, unSnap] = await Promise.all([
+            db.collection(userPath()+'/companies/'+doc.id+'/assignedGames').get(),
+            db.collection(userPath()+'/companies/'+doc.id+'/usernames').get(),
+          ]);
           cData.assignedGames = agSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
-          const unSnap = await db.collection(`${userPath()}/companies/${doc.id}/usernames`).get();
           cData.usernames = unSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
-          state.companies[doc.id] = cData;
-        }
+          return cData;
+        });
+        const companies = await Promise.all(compPromises);
+        state.companies = {};
+        companies.forEach(c => state.companies[c._id] = c);
       } catch (e) {
         console.error('Load error:', e);
       }
+    }
+
+    // Setup realtime listeners after initial load
+    function setupListeners() {
+      stopListeners();
+      if (!state.user) return;
+      const bp = userPath();
+      // Listen to master games
+      _unsubs.push(db.collection(bp+'/masterGames').onSnapshot(snap => {
+        state.masterGames = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      }));
+      // Listen to bills (latest 100)
+      _unsubs.push(db.collection(bp+'/bills').orderBy('date','desc').limit(100).onSnapshot(snap => {
+        state.bills = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      }));
+      // Listen to companies
+      _unsubs.push(db.collection(bp+'/companies').onSnapshot(snap => {
+        snap.docChanges().forEach(change => {
+          const id = change.doc.id;
+          const data = { _id: id, ...change.doc.data() };
+          if (change.type === 'removed') {
+            delete state.companies[id];
+          } else {
+            // Preserve subcollections if they exist
+            const existing = state.companies[id];
+            data.assignedGames = existing?.assignedGames || [];
+            data.usernames = existing?.usernames || [];
+            state.companies[id] = data;
+            // Setup subcollection listeners for this company
+            setupCompanySubListeners(id);
+          }
+        });
+      }));
+    }
+
+    const _compSubs = {};
+    function setupCompanySubListeners(compId) {
+      if (_compSubs[compId]) return; // Already listening
+      const bp = userPath();
+      const unsub1 = db.collection(bp+'/companies/'+compId+'/assignedGames').onSnapshot(snap => {
+        if (state.companies[compId]) {
+          state.companies[compId].assignedGames = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+        }
+      });
+      const unsub2 = db.collection(bp+'/companies/'+compId+'/usernames').onSnapshot(snap => {
+        if (state.companies[compId]) {
+          state.companies[compId].usernames = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+        }
+      });
+      _compSubs[compId] = () => { unsub1(); unsub2(); };
+      _unsubs.push(_compSubs[compId]);
     }
 
     // ============================================================
@@ -770,7 +856,6 @@
         const btn = $('#btnSync');
         btn.classList.add('syncing');
         btn.querySelector('.util-label')&&(btn.querySelector('.util-label').textContent = 'Syncing...');
-        await loadAllData();
         btn.classList.remove('syncing');
         btn.querySelector('.util-label')&&(btn.querySelector('.util-label').textContent = 'Sync');
         render();
@@ -803,7 +888,7 @@
           for (const mg of state.masterGames) await db.doc(userPath()+'/masterGames/'+mg._id).delete();
           for (const bill of state.bills) await db.doc(userPath()+'/bills/'+bill._id).delete();
           loadEl.remove();
-          await loadAllData(); render();
+          render();
           alert('All data has been deleted.');
         } catch(e) { alert('Delete failed: '+e.message); }
       };
@@ -856,7 +941,6 @@
               }
             }
           }
-          await loadAllData();
           loadingOverlay.remove();
           render();
           const importStatus = document.createElement('div');
@@ -903,16 +987,14 @@
             <div style="font-size:18px;font-weight:700;font-family:'Orbitron',monospace;color:${totalPL>=0?'#34d399':'var(--red)'}">${totalPL>=0?'+':''}$${totalPL.toFixed(2)}</div>
           </div>
         </div>
-        <p style="font-size:12px;color:var(--textSecondary);margin-bottom:12px">${scope==='all'?'All companies':'Company'} report</p>
-        <div style="display:flex;gap:8px;margin-bottom:14px">
-          <div style="flex:1">
-            <span class="label" style="font-size:10px">From</span>
-            <input class="input" type="datetime-local" id="reportFrom" value="${firstOfMonth}T00:00" style="font-size:13px" placeholder="From date & time" />
-          </div>
-          <div style="flex:1">
-            <span class="label" style="font-size:10px">To</span>
-            <input class="input" type="datetime-local" id="reportTo" value="${today}T23:59" style="font-size:13px" placeholder="To date & time" />
-          </div>
+        <p style="font-size:12px;color:var(--textMuted);margin-bottom:14px">Transaction & P/L Report${scope==='all'?' · All Companies':''}</p>
+        <div style="margin-bottom:10px">
+          <span class="label" style="font-size:10px">From</span>
+          <input class="input" type="datetime-local" id="reportFrom" value="${firstOfMonth}T00:00" style="font-size:13px" placeholder="From" />
+        </div>
+        <div style="margin-bottom:14px">
+          <span class="label" style="font-size:10px">To</span>
+          <input class="input" type="datetime-local" id="reportTo" value="${today}T23:59" style="font-size:13px" placeholder="To" />
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
           <button class="btn btn-green btn-full" id="reportDownloadTx" style="justify-content:center">
@@ -1094,7 +1176,6 @@
         const costRate = parseFloat($('#mgNewCostRate').value) || 0;
         await db.collection(`${userPath()}/masterGames`).add({ name, totalPoints: pts, remainingPoints: pts, costRate });
         $('#mgNewName').value = ''; $('#mgNewPoints').value = ''; if($('#mgNewCostRate'))$('#mgNewCostRate').value = '';
-        await loadAllData();
         renderMasterGamesList();
         bindMasterGameListEvents();
       };
@@ -1158,7 +1239,6 @@
         btn.disabled = true; btn.innerHTML = 'Saving...';
         const newCostRate = parseFloat($('#mgDetailCostRate').value) || 0;
         await db.doc(`${userPath()}/masterGames/${g._id}`).update({ name: newName, remainingPoints: newPts, costRate: newCostRate });
-        await loadAllData();
         overlay.remove();
         // Re-render the master games list in the modal behind
         renderMasterGamesList();
@@ -1169,7 +1249,6 @@
         const btn = $('#mgDetailDelete');
         btn.disabled = true; btn.innerHTML = 'Deleting...';
         await db.doc(`${userPath()}/masterGames/${g._id}`).delete();
-        await loadAllData();
         overlay.remove();
         renderMasterGamesList();
         bindMasterGameListEvents();
@@ -1225,8 +1304,10 @@
       $('#confirmAddCompany').onclick = async () => {
         const name = $('#newCompanyName').value.trim();
         if (!name) return;
-        await db.collection(`${userPath()}/companies`).add({ name, active: true });
-        await loadAllData();
+        bgWrite(db.collection(userPath()+'/companies').add({ name, active: true }));
+        // Optimistic: add temp company
+        const tempId = 'temp_'+Date.now();
+        state.companies[tempId] = { _id: tempId, name, active: true, assignedGames: [], usernames: [] };
         render();
       };
       $('#newCompanyName').onkeydown = (e) => { if (e.key === 'Enter') $('#confirmAddCompany').click(); };
@@ -1399,7 +1480,7 @@
               return `<div class="bill-hist-wrap" data-date="${b.date}" data-billid="${b._id}" data-search="${(b.items||[]).map(i=>(i.gameName||'')+(i.username||'')).join(' ').toLowerCase()}">
               <div class="bill-history-item" style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
                 <div style="flex:1">
-                  <div style="font-size:12px;color:var(--textSecondary)">${new Date(b.date).toLocaleDateString()} ${new Date(b.date).toLocaleTimeString()}</div>
+                  <div style="font-size:12px;color:var(--textSecondary)">${new Date(b.date).toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'})} ${new Date(b.date).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}</div>
                   <div style="font-size:11px;color:var(--textMuted)">${(b.items||[]).length} items · <span style="color:${totalPL>=0?'#34d399':'var(--red)'}">P/L $${totalPL.toFixed(2)}</span></div>
                 </div>
                 <div style="text-align:right">
@@ -1672,7 +1753,6 @@
           if (!result) return;
           await db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: result.name, level: result.level||'' });
           state.billItems[idx].username = result.name;
-          await loadAllData();
           render();
         };
       });
@@ -1749,16 +1829,20 @@
               const mg = state.masterGames.find(g => g.name === item.gameName);
               if (mg) {
                 const newPts = (mg.remainingPoints || 0) - calc.points;
-                await db.doc(`${userPath()}/masterGames/${mg._id}`).update({ remainingPoints: newPts });
+                bgWrite(db.doc(userPath()+'/masterGames/'+mg._id).update({ remainingPoints: newPts }));
+                mg.remainingPoints = newPts; // Optimistic update
               }
             }
           }
-          await db.collection(`${userPath()}/bills`).add(bill);
-          await loadAllData();
+          bgWrite(db.collection(userPath()+'/bills').add(bill));
+          // Optimistically add to local state
+          state.bills.unshift({ ...bill, _id: 'pending_'+Date.now() });
+          // Don't wait for full reload - listeners will update state
           saveBtn.disabled = false;
           saveBtn.innerHTML = origHTML;
           $('#billSavedMsg').classList.remove('hidden');
-          setTimeout(() => { try { $('#billSavedMsg')?.classList.add('hidden'); } catch(e){} }, 3000);
+          setTimeout(() => { try { $('#billSavedMsg')?.classList.add('hidden'); } catch(e){} }, 2000);
+          render(); // Re-render to show new bill in history
         };
       }
 
@@ -2046,7 +2130,7 @@
           for (const name of selectedGames) {
             await db.collection(`${userPath()}/companies/${cid}/assignedGames`).add({ gameName: name, rate });
           }
-          await loadAllData(); render();
+          render();
         };
         $('#rateSearch').oninput = () => {
           const q = $('#rateSearch').value.toLowerCase();
@@ -2067,7 +2151,7 @@
             $(`#saveRate_${id}`).onclick = async () => {
               const newRate = parseFloat($(`#editRate_${id}`).value) || 0;
               await db.doc(`${userPath()}/companies/${cid}/assignedGames/${id}`).update({ rate: newRate });
-              await loadAllData(); render();
+              render();
             };
           };
         });
@@ -2075,7 +2159,7 @@
           btn.onclick = async () => {
             if (!confirm('Remove this game?')) return;
             await db.doc(`${userPath()}/companies/${cid}/assignedGames/${btn.dataset.id}`).delete();
-            await loadAllData(); render();
+            render();
           };
         });
       }
@@ -2162,14 +2246,14 @@
           for (const gameName of selectedUnGames) {
             await db.collection(`${userPath()}/companies/${cid}/usernames`).add({ gameName, username: name, level });
           }
-          await loadAllData(); render();
+          render();
         };
 
         $$('.un-del').forEach(btn => {
           btn.onclick = async () => {
             if (!confirm('Remove this username?')) return;
             await db.doc(`${userPath()}/companies/${cid}/usernames/${btn.dataset.id}`).delete();
-            await loadAllData(); render();
+            render();
           };
         });
       }
@@ -2214,7 +2298,8 @@
           </div>
         </div>
         <div class="card" style="margin-bottom:14px">
-          <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:12px">GENERATE REPORT</h4>
+          <h4 style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:4px">GENERATE REPORT</h4>
+          <p style="font-size:11px;color:var(--textMuted);margin-bottom:12px">Transaction & P/L Report</p>
           <div style="display:flex;gap:16px;margin-bottom:16px;padding:14px;border-radius:10px;background:rgba(15,12,28,0.5);border:1px solid var(--glassBorder)">
             <div style="flex:1;text-align:center">
               <div style="font-size:10px;color:var(--textMuted);text-transform:uppercase;margin-bottom:2px">Total Revenue</div>
@@ -2282,7 +2367,7 @@
         const newName = $('#editCompanyNameInput').value.trim();
         if (!newName) return;
         await db.doc(`${userPath()}/companies/${c._id}`).update({ name: newName });
-        await loadAllData(); render();
+        render();
       };
       $('#editCompanyNameInput').onkeydown = (e) => {
         if (e.key === 'Enter') $('#saveCompanyName').click();
@@ -2293,7 +2378,7 @@
       $('#activeToggle').onclick = async () => {
         const newVal = c.active === false ? true : false;
         await db.doc(`${userPath()}/companies/${c._id}`).update({ active: newVal });
-        await loadAllData(); render();
+        render();
       };
 
       // Download report
@@ -2310,7 +2395,6 @@
           for (const doc of unSnap.docs) await doc.ref.delete();
           // Delete company doc
           await db.doc(`${userPath()}/companies/${c._id}`).delete();
-          await loadAllData();
           state.view = 'companies';
           state.selectedCompanyId = null;
           render();
@@ -2334,9 +2418,11 @@
         state.view = 'loading';
         render();
         await loadAllData(true);
+        setupListeners();
         state.view = 'companies';
         render();
       } else {
+        stopListeners();
         state.user = null;
         state.view = 'login';
         state.companies = {};
