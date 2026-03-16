@@ -562,7 +562,7 @@
       } else {
         if (wrap) wrap.classList.remove('syncing');
         if (_lastSyncedTime) {
-          el.textContent = 'Last Synced: ' + _lastSyncedTime.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+          el.textContent = 'Last Synced: ' + _lastSyncedTime.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true });
           el.style.color = 'var(--textMuted)';
         } else {
           el.textContent = 'Last Synced: --:--';
@@ -697,6 +697,8 @@
       skipPushState = false;
       // Update clock in utility bar
       if (typeof updateUtilClock === 'function') updateUtilClock();
+      // Restore sync indicator state after DOM rebuild
+      updateSyncIndicator();
     }
 
     window.addEventListener('popstate', (e) => {
@@ -2150,7 +2152,7 @@
         </div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <div style="flex:1;position:relative" id="unGameFilterWrap">
-            <input class="input" id="unGameFilterInput" placeholder="All Games" value="" autocomplete="off" style="font-size:13px;cursor:pointer;padding-right:28px" readonly />
+            <input class="input" id="unGameFilterInput" placeholder="All Games" value="" autocomplete="off" style="cursor:pointer;padding-right:28px" readonly />
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--textMuted)" stroke-width="2.5" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none"><polyline points="6,15 12,9 18,15"/></svg>
             <input type="hidden" id="unGameFilter" value="" />
             <div id="unGameFilterDrop" class="hidden" style="position:absolute;bottom:calc(100% + 4px);left:0;right:0;background:rgba(16,13,30,0.97);border:1px solid var(--glassBorder);border-radius:10px;z-index:300;max-height:260px;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,0.6)">
