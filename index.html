@@ -79,6 +79,8 @@
 
     @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
     @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.5; } }
+    @keyframes syncGlow { 0%,100%{ filter:drop-shadow(0 0 2px rgba(6,182,212,0.2)); } 50%{ filter:drop-shadow(0 0 8px rgba(6,182,212,0.8)) drop-shadow(0 0 16px rgba(6,182,212,0.3)); } }
+    #lastSyncedIndicator.syncing svg { animation: syncGlow 1.4s ease-in-out infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .fade-in { animation: fadeIn 0.3s ease-out; }
 
@@ -551,16 +553,21 @@
     }
     function updateSyncIndicator() {
       const el = document.getElementById('lastSyncedText');
+      const wrap = document.getElementById('lastSyncedIndicator');
       if (!el) return;
       if (_pendingWrites > 0) {
-        el.textContent = 'Saving...';
-        el.style.color = 'var(--orange)';
-      } else if (_lastSyncedTime) {
-        el.textContent = 'Last Synced: ' + _lastSyncedTime.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
-        el.style.color = 'var(--textMuted)';
+        el.textContent = 'Syncing...';
+        el.style.color = 'var(--textSecondary)';
+        if (wrap) wrap.classList.add('syncing');
       } else {
-        el.textContent = 'Last Synced: --:--';
-        el.style.color = 'var(--textMuted)';
+        if (wrap) wrap.classList.remove('syncing');
+        if (_lastSyncedTime) {
+          el.textContent = 'Last Synced: ' + _lastSyncedTime.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+          el.style.color = 'var(--textMuted)';
+        } else {
+          el.textContent = 'Last Synced: --:--';
+          el.style.color = 'var(--textMuted)';
+        }
       }
     }
 
@@ -568,6 +575,13 @@
     function bgWrite(promise) {
       startWrite();
       promise.then(() => endWrite()).catch(e => { endWrite(); console.error('Write error:', e); });
+    }
+
+    // Tracked write helper for await-style writes (blocks but updates sync indicator)
+    async function trackedWrite(promiseFn) {
+      startWrite();
+      try { const r = await promiseFn(); endWrite(); return r; }
+      catch(e) { endWrite(); throw e; }
     }
 
     let _unsubs = []; // Firestore listener unsubscribers
@@ -880,7 +894,7 @@
           for (const [cid, cdata] of Object.entries(state.companies)) {
             for (const ag of (cdata.assignedGames||[])) await db.doc(userPath()+'/companies/'+cid+'/assignedGames/'+ag._id).delete();
             for (const un of (cdata.usernames||[])) await db.doc(userPath()+'/companies/'+cid+'/usernames/'+un._id).delete();
-            await db.doc(userPath()+'/companies/'+cid).delete();
+            await trackedWrite(() => db.doc(userPath()+'/companies/'+cid).delete());
           }
           for (const mg of state.masterGames) await db.doc(userPath()+'/masterGames/'+mg._id).delete();
           for (const bill of state.bills) await db.doc(userPath()+'/bills/'+bill._id).delete();
@@ -911,41 +925,103 @@
       input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        let loadingOverlay;
         try {
-          const loadingOverlay = document.createElement('div');
+          loadingOverlay = document.createElement('div');
           loadingOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999';
           loadingOverlay.innerHTML = '<div style="text-align:center"><div class="spinner"></div><div style="color:var(--textPrimary);font-family:Orbitron,monospace;font-size:13px;margin-top:10px">Importing data...</div></div>';
           document.body.appendChild(loadingOverlay);
+          startWrite();
           const text = await file.text();
           const data = JSON.parse(text);
+
+          // Import master games - match by name to avoid duplicates
           if (data.masterGames) {
             for (const g of data.masterGames) {
               const { _id, ...rest } = g;
-              await db.doc(`${userPath()}/masterGames/${_id}`).set(rest);
+              const existing = state.masterGames.find(m => m.name === g.name);
+              if (existing) {
+                await db.doc(`${userPath()}/masterGames/${existing._id}`).set({ ...rest }, { merge: true });
+              } else if (_id) {
+                await db.doc(`${userPath()}/masterGames/${_id}`).set(rest);
+              } else {
+                await db.collection(`${userPath()}/masterGames`).add(rest);
+              }
             }
           }
+
+          // Import companies - match by name to avoid duplicates
           if (data.companies) {
-            for (const [cid, cdata] of Object.entries(data.companies)) {
+            for (const [importCid, cdata] of Object.entries(data.companies)) {
               const { _id, assignedGames, usernames, ...compInfo } = cdata;
-              await db.doc(`${userPath()}/companies/${cid}`).set(compInfo);
-              if (assignedGames) for (const ag of assignedGames) {
-                const { _id: aid, ...agRest } = ag;
-                await db.doc(`${userPath()}/companies/${cid}/assignedGames/${aid}`).set(agRest);
+              const existingComp = Object.values(state.companies).find(ec => ec.name === cdata.name);
+              const targetCid = existingComp ? existingComp._id : importCid;
+
+              if (existingComp) {
+                await db.doc(`${userPath()}/companies/${targetCid}`).set({ ...compInfo }, { merge: true });
+              } else {
+                await db.doc(`${userPath()}/companies/${targetCid}`).set(compInfo);
               }
-              if (usernames) for (const un of usernames) {
-                const { _id: uid2, ...unRest } = un;
-                await db.doc(`${userPath()}/companies/${cid}/usernames/${uid2}`).set(unRest);
+
+              // Import assigned games - match by gameName within company
+              if (assignedGames) {
+                const existingAG = existingComp ? (existingComp.assignedGames || []) : [];
+                for (const ag of assignedGames) {
+                  const { _id: aid, ...agRest } = ag;
+                  const matchAG = existingAG.find(e => e.gameName === ag.gameName);
+                  if (matchAG) {
+                    await db.doc(`${userPath()}/companies/${targetCid}/assignedGames/${matchAG._id}`).set({ ...agRest }, { merge: true });
+                  } else if (aid) {
+                    await db.doc(`${userPath()}/companies/${targetCid}/assignedGames/${aid}`).set(agRest);
+                  } else {
+                    await db.collection(`${userPath()}/companies/${targetCid}/assignedGames`).add(agRest);
+                  }
+                }
+              }
+
+              // Import usernames - match by username+gameName within company
+              if (usernames) {
+                const existingUN = existingComp ? (existingComp.usernames || []) : [];
+                for (const un of usernames) {
+                  const { _id: uid2, ...unRest } = un;
+                  const matchUN = existingUN.find(e => e.username === un.username && e.gameName === un.gameName);
+                  if (matchUN) {
+                    await db.doc(`${userPath()}/companies/${targetCid}/usernames/${matchUN._id}`).set({ ...unRest }, { merge: true });
+                  } else if (uid2) {
+                    await db.doc(`${userPath()}/companies/${targetCid}/usernames/${uid2}`).set(unRest);
+                  } else {
+                    await db.collection(`${userPath()}/companies/${targetCid}/usernames`).add(unRest);
+                  }
+                }
               }
             }
           }
+
+          // Import bills - skip duplicates matched by date+companyId
+          if (data.bills) {
+            for (const bill of data.bills) {
+              const { _id: bid, ...billRest } = bill;
+              const existingBill = state.bills.find(b => b.date === bill.date && b.companyId === bill.companyId);
+              if (!existingBill) {
+                if (bid) {
+                  await db.doc(`${userPath()}/bills/${bid}`).set(billRest);
+                } else {
+                  await db.collection(`${userPath()}/bills`).add(billRest);
+                }
+              }
+            }
+          }
+
+          endWrite();
           loadingOverlay.remove();
+          await loadAllData(true);
           render();
           const importStatus = document.createElement('div');
           importStatus.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bgCard);border:1px solid var(--border);border-radius:12px;padding:24px;z-index:9999;text-align:center;min-width:200px';
           importStatus.innerHTML = '<div style="color:var(--green);font-weight:600;font-size:14px">✓ Import Complete</div>';
           document.body.appendChild(importStatus);
           setTimeout(() => importStatus.remove(), 2000);
-        } catch (er) { if(typeof loadingOverlay!=='undefined')loadingOverlay.remove(); alert('Import failed: ' + er.message); }
+        } catch (er) { endWrite(); if(loadingOverlay)loadingOverlay.remove(); alert('Import failed: ' + er.message); }
       };
       input.click();
     }
@@ -1166,12 +1242,16 @@
       $('#closeMasterGames').onclick = () => { state.masterGamesModalOpen = false; $('#masterGamesModal')?.remove(); };
       $('#masterGamesModal').onclick = (e) => { if (e.target.id === 'masterGamesModal') { state.masterGamesModalOpen = false; e.target.remove(); } };
       $('#mgSearch').oninput = () => { renderMasterGamesList(); bindMasterGameListEvents(); };
+      const mgAddHandler = () => $('#mgAdd').click();
+      if ($('#mgNewName')) $('#mgNewName').onkeydown = (e) => { if (e.key === 'Enter') mgAddHandler(); };
+      if ($('#mgNewPoints')) $('#mgNewPoints').onkeydown = (e) => { if (e.key === 'Enter') mgAddHandler(); };
+      if ($('#mgNewCostRate')) $('#mgNewCostRate').onkeydown = (e) => { if (e.key === 'Enter') mgAddHandler(); };
       $('#mgAdd').onclick = async () => {
         const name = $('#mgNewName').value.trim();
         const pts = parseFloat($('#mgNewPoints').value) || 0;
         if (!name) return;
         const costRate = parseFloat($('#mgNewCostRate').value) || 0;
-        await db.collection(`${userPath()}/masterGames`).add({ name, totalPoints: pts, remainingPoints: pts, costRate });
+        await trackedWrite(() => db.collection(`${userPath()}/masterGames`).add({ name, totalPoints: pts, remainingPoints: pts, costRate }));
         $('#mgNewName').value = ''; $('#mgNewPoints').value = ''; if($('#mgNewCostRate'))$('#mgNewCostRate').value = '';
         renderMasterGamesList();
         bindMasterGameListEvents();
@@ -1228,6 +1308,10 @@
 
       overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
       $('#closeMgDetail').onclick = () => overlay.remove();
+      const mgDetailSaveHandler = () => $('#mgDetailSave').click();
+      $$('#mgDetailOverlay input.input').forEach(inp => {
+        inp.onkeydown = (e) => { if (e.key === 'Enter') mgDetailSaveHandler(); };
+      });
       $('#mgDetailSave').onclick = async () => {
         const newName = $('#mgDetailName').value.trim();
         const newPts = parseFloat($('#mgDetailPts').value) || 0;
@@ -1235,7 +1319,7 @@
         const btn = $('#mgDetailSave');
         btn.disabled = true; btn.innerHTML = 'Saving...';
         const newCostRate = parseFloat($('#mgDetailCostRate').value) || 0;
-        await db.doc(`${userPath()}/masterGames/${g._id}`).update({ name: newName, remainingPoints: newPts, costRate: newCostRate });
+        await trackedWrite(() => db.doc(`${userPath()}/masterGames/${g._id}`).update({ name: newName, remainingPoints: newPts, costRate: newCostRate }));
         overlay.remove();
         // Re-render the master games list in the modal behind
         renderMasterGamesList();
@@ -1245,7 +1329,7 @@
         if (!confirm('Delete "' + g.name + '"?')) return;
         const btn = $('#mgDetailDelete');
         btn.disabled = true; btn.innerHTML = 'Deleting...';
-        await db.doc(`${userPath()}/masterGames/${g._id}`).delete();
+        await trackedWrite(() => db.doc(`${userPath()}/masterGames/${g._id}`).delete());
         overlay.remove();
         renderMasterGamesList();
         bindMasterGameListEvents();
@@ -1750,7 +1834,7 @@
             setTimeout(() => ov.querySelector('#_qaName')?.focus(), 100);
           });
           if (!result) return;
-          await db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: result.name, level: result.level||'' });
+          await trackedWrite(() => db.collection(`${userPath()}/companies/${c._id}/usernames`).add({ gameName, username: result.name, level: result.level||'' }));
           state.billItems[idx].username = result.name;
           render();
         };
@@ -1899,7 +1983,7 @@
           const bid = btn.dataset.billid;
           btn.disabled = true; btn.innerHTML = '...';
           try {
-            await db.doc(userPath()+'/bills/'+bid).delete();
+            await trackedWrite(() => db.doc(userPath()+'/bills/'+bid).delete());
             state.bills = state.bills.filter(b => b._id !== bid);
             btn.closest('.bill-hist-wrap').remove();
           } catch(e) { alert('Delete failed'); }
@@ -2065,8 +2149,14 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
-          <div style="flex:1">
-            <select class="input" id="unGameFilter"><option value="">All Games</option>${gameOptions}</select>
+          <div style="flex:1;position:relative" id="unGameFilterWrap">
+            <input class="input" id="unGameFilterInput" placeholder="All Games" value="" autocomplete="off" style="font-size:13px;cursor:pointer;padding-right:28px" readonly />
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--textMuted)" stroke-width="2.5" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none"><polyline points="6,15 12,9 18,15"/></svg>
+            <input type="hidden" id="unGameFilter" value="" />
+            <div id="unGameFilterDrop" class="hidden" style="position:absolute;bottom:calc(100% + 4px);left:0;right:0;background:rgba(16,13,30,0.97);border:1px solid var(--glassBorder);border-radius:10px;z-index:300;max-height:260px;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,0.6)">
+              <div class="dropdown-item un-gf-opt" data-val="" style="color:var(--cyan);font-weight:600">All Games</div>
+              ${assigned.map(g => '<div class="dropdown-item un-gf-opt" data-val="' + esc(g.gameName) + '">' + esc(g.gameName) + '</div>').join('')}
+            </div>
           </div>
           <div class="search-wrap" style="flex:1">
             <span class="search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
@@ -2111,6 +2201,17 @@
             });
           };
         }
+        const sortAssignTags = () => {
+          const container = $('#availableGames');
+          if (!container) return;
+          const tags = [...container.querySelectorAll('.game-tag')];
+          tags.sort((a,b) => {
+            const aS = a.classList.contains('selected') ? 0 : 1;
+            const bS = b.classList.contains('selected') ? 0 : 1;
+            return aS - bS || a.dataset.name.localeCompare(b.dataset.name);
+          });
+          tags.forEach(t => container.appendChild(t));
+        };
         $$('.game-tag').forEach(tag => {
           tag.onclick = () => {
             const name = tag.dataset.name;
@@ -2124,12 +2225,14 @@
               tag.textContent = '✓ ' + name;
             }
             if ($('#assignGameCount')) $('#assignGameCount').textContent = '(' + selectedGames.length + ' selected)';
+            sortAssignTags();
           };
         });
+        if ($('#assignRate')) $('#assignRate').onkeydown = (e) => { if (e.key === 'Enter') $('#confirmAssign').click(); };
         $('#confirmAssign').onclick = async () => {
           const rate = parseFloat($('#assignRate').value) || 0;
           for (const name of selectedGames) {
-            await db.collection(`${userPath()}/companies/${cid}/assignedGames`).add({ gameName: name, rate });
+            await trackedWrite(() => db.collection(`${userPath()}/companies/${cid}/assignedGames`).add({ gameName: name, rate }));
           }
           render();
         };
@@ -2149,9 +2252,10 @@
             const badge = row.querySelector('.badge');
             badge.outerHTML = `<input class="input" type="number" value="${g.rate||0}" id="editRate_${id}" style="width:80px"/>`;
             btn.outerHTML = `<button class="btn btn-green btn-sm" id="saveRate_${id}">✓</button>`;
+            $(`#editRate_${id}`).onkeydown = (e) => { if (e.key === 'Enter') $(`#saveRate_${id}`).click(); };
             $(`#saveRate_${id}`).onclick = async () => {
               const newRate = parseFloat($(`#editRate_${id}`).value) || 0;
-              await db.doc(`${userPath()}/companies/${cid}/assignedGames/${id}`).update({ rate: newRate });
+              await trackedWrite(() => db.doc(`${userPath()}/companies/${cid}/assignedGames/${id}`).update({ rate: newRate }));
               render();
             };
           };
@@ -2159,7 +2263,7 @@
         $$('.rate-del').forEach(btn => {
           btn.onclick = async () => {
             if (!confirm('Remove this game?')) return;
-            await db.doc(`${userPath()}/companies/${cid}/assignedGames/${btn.dataset.id}`).delete();
+            await trackedWrite(() => db.doc(`${userPath()}/companies/${cid}/assignedGames/${btn.dataset.id}`).delete());
             render();
           };
         });
@@ -2177,8 +2281,55 @@
             r.style.display = (matchGame && matchSearch) ? '' : 'none';
           });
         };
-        if ($('#unGameFilter')) $('#unGameFilter').onchange = filterAndSearch;
         if ($('#unSearch')) $('#unSearch').oninput = filterAndSearch;
+
+        // Searchable game filter dropdown
+        if ($('#unGameFilterInput')) {
+          const gfInput = $('#unGameFilterInput');
+          const gfDrop = $('#unGameFilterDrop');
+          const gfHidden = $('#unGameFilter');
+
+          const openGfDrop = () => {
+            gfDrop.classList.remove('hidden');
+            gfInput.removeAttribute('readonly');
+            gfInput.value = '';
+            gfInput.placeholder = 'Type to search games...';
+            $$('.un-gf-opt').forEach(o => o.style.display = '');
+          };
+          const closeGfDrop = (label) => {
+            gfDrop.classList.add('hidden');
+            gfInput.setAttribute('readonly', '');
+            gfInput.value = '';
+            gfInput.placeholder = label || 'All Games';
+          };
+
+          gfInput.onfocus = (e) => { e.stopPropagation(); openGfDrop(); };
+          gfInput.onclick = (e) => {
+            e.stopPropagation();
+            if (gfDrop.classList.contains('hidden')) openGfDrop();
+          };
+          gfInput.oninput = () => {
+            const q = gfInput.value.toLowerCase().split(/\s+/).filter(Boolean);
+            $$('.un-gf-opt').forEach(o => {
+              if (!o.dataset.val) { o.style.display = ''; return; }
+              const name = o.dataset.val.toLowerCase();
+              const match = q.length === 0 || q.every(w => name.includes(w));
+              o.style.display = match ? '' : 'none';
+            });
+          };
+          $$('.un-gf-opt').forEach(opt => {
+            opt.onclick = (e) => {
+              e.stopPropagation();
+              const val = opt.dataset.val;
+              gfHidden.value = val;
+              closeGfDrop(val || 'All Games');
+              filterAndSearch();
+            };
+          });
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('#unGameFilterWrap')) closeGfDrop(gfHidden.value || 'All Games');
+          });
+        }
 
         // Custom level dropdown
         if ($('#unLevelTrigger')) {
@@ -2216,6 +2367,17 @@
           };
         }
 
+        const sortUnTags = () => {
+          const container = $('#unAddGameTags');
+          if (!container) return;
+          const tags = [...container.querySelectorAll('.game-tag')];
+          tags.sort((a,b) => {
+            const aS = a.classList.contains('selected') ? 0 : 1;
+            const bS = b.classList.contains('selected') ? 0 : 1;
+            return aS - bS || a.dataset.name.localeCompare(b.dataset.name);
+          });
+          tags.forEach(t => container.appendChild(t));
+        };
         $$('#unAddGameTags .game-tag').forEach(tag => {
           tag.onclick = () => {
             const name = tag.dataset.name;
@@ -2229,9 +2391,11 @@
               tag.textContent = '✓ ' + name;
             }
             updateUnGameCount();
+            sortUnTags();
           };
         });
 
+        if ($('#unAddName')) $('#unAddName').onkeydown = (e) => { if (e.key === 'Enter') $('#unAddBtn').click(); };
         $('#unAddBtn').onclick = async () => {
           const name = $('#unAddName').value.trim();
           const level = $('#unAddLevel').value.trim();
@@ -2245,7 +2409,7 @@
             return;
           }
           for (const gameName of selectedUnGames) {
-            await db.collection(`${userPath()}/companies/${cid}/usernames`).add({ gameName, username: name, level });
+            await trackedWrite(() => db.collection(`${userPath()}/companies/${cid}/usernames`).add({ gameName, username: name, level }));
           }
           render();
         };
@@ -2253,7 +2417,7 @@
         $$('.un-del').forEach(btn => {
           btn.onclick = async () => {
             if (!confirm('Remove this username?')) return;
-            await db.doc(`${userPath()}/companies/${cid}/usernames/${btn.dataset.id}`).delete();
+            await trackedWrite(() => db.doc(`${userPath()}/companies/${cid}/usernames/${btn.dataset.id}`).delete());
             render();
           };
         });
@@ -2367,7 +2531,7 @@
       $('#saveCompanyName').onclick = async () => {
         const newName = $('#editCompanyNameInput').value.trim();
         if (!newName) return;
-        await db.doc(`${userPath()}/companies/${c._id}`).update({ name: newName });
+        await trackedWrite(() => db.doc(`${userPath()}/companies/${c._id}`).update({ name: newName }));
         render();
       };
       $('#editCompanyNameInput').onkeydown = (e) => {
@@ -2378,7 +2542,7 @@
       // Toggle active
       $('#activeToggle').onclick = async () => {
         const newVal = c.active === false ? true : false;
-        await db.doc(`${userPath()}/companies/${c._id}`).update({ active: newVal });
+        await trackedWrite(() => db.doc(`${userPath()}/companies/${c._id}`).update({ active: newVal }));
         render();
       };
 
@@ -2395,7 +2559,7 @@
           const unSnap = await db.collection(`${userPath()}/companies/${c._id}/usernames`).get();
           for (const doc of unSnap.docs) await doc.ref.delete();
           // Delete company doc
-          await db.doc(`${userPath()}/companies/${c._id}`).delete();
+          await trackedWrite(() => db.doc(`${userPath()}/companies/${c._id}`).delete());
           state.view = 'companies';
           state.selectedCompanyId = null;
           render();
